@@ -1,29 +1,13 @@
 from app.workflows.state.linkedin_state import LinkedInPostState
 from app.services.llm_service import get_llm
+from app.prompts.topic_prompts import TOPIC_GENERATION_PROMPT
 
 
-def topic_node(state: LinkedInPostState):
+def topic_node(state):
 
     llm = get_llm()
 
-    prompt = """
-    Generate ONE trending LinkedIn post topic related to:
-    - AI engineering
-    - LLMs
-    - FastAPI
-    - AI agents
-    - developer productivity
-    - startups
-
-    The topic should:
-    - be relevant in 2026
-    - sound insightful
-    - have strong engagement potential
-
-    Return only the topic.
-    """
-
-    response = llm.invoke(prompt)
+    response = llm.invoke(TOPIC_GENERATION_PROMPT)
 
     state["topic"] = response.content.strip()
 

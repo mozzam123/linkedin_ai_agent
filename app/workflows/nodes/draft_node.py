@@ -1,30 +1,19 @@
 from app.workflows.state.linkedin_state import LinkedInPostState
 from app.services.llm_service import get_llm
+from app.prompts.draft_prompts import DRAFT_GENERATION_PROMPT
 
 
-def draft_node(state: LinkedInPostState):
+def draft_node(state):
 
     llm = get_llm()
 
-    topic = state["topic"]
+    prompt = DRAFT_GENERATION_PROMPT.format(
 
-    prompt = f"""
-    You are an expert LinkedIn content writer.
+        topic=state["topic"],
 
-    Write a high-quality LinkedIn post about:
+        research=state["research_notes"]
 
-    Topic:
-    {topic}
-
-    Style:
-    - professional
-    - insightful
-    - concise
-    - engaging
-    - easy to read
-
-    Keep it authentic and practical.
-    """
+    )
 
     response = llm.invoke(prompt)
 

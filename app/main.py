@@ -1,11 +1,13 @@
 from fastapi import FastAPI
-
 from app.workflows.graphs.linkedin_graph import workflow
-
+from app.db.init_db import init_db
+from app.api.routes.review_routes import router as review_router
 
 app = FastAPI()
 
 
+
+app.include_router(review_router)
 
 @app.get("/")
 async def root():
@@ -30,3 +32,9 @@ async def run_workflow():
     result = workflow.invoke(initial_state)
 
     return result
+
+
+@app.on_event("startup")
+async def startup_event():
+
+    init_db()
