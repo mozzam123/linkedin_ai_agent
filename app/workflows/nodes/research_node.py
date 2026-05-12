@@ -1,5 +1,4 @@
 from app.workflows.state.linkedin_state import LinkedInPostState
-
 from app.tools.research_tool import research_topic
 
 

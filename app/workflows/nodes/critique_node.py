@@ -3,9 +3,12 @@ from app.workflows.state.linkedin_state import LinkedInPostState
 from app.services.llm_service import get_llm
 
 from app.schemas.evaluation_schema import PostEvaluation
+import time
 
 
 def critique_node(state: LinkedInPostState):
+
+    start = time.time()
 
     llm = get_llm()
 
@@ -35,5 +38,14 @@ def critique_node(state: LinkedInPostState):
 
     state["score"] = response.score
     state["critique"] = response.feedback
+
+    duration = time.time() - start
+
+    state["trace"].log_step(
+        "draft_node",
+        {"topic": state["topic"]},
+        {"generated_post": response.content},
+        duration
+    )
 
     return state

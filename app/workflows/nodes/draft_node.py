@@ -1,9 +1,11 @@
-from app.workflows.state.linkedin_state import LinkedInPostState
+import time
 from app.services.llm_service import get_llm
 from app.prompts.draft_prompts import DRAFT_GENERATION_PROMPT
 
 
 def draft_node(state):
+
+    start = time.time()
 
     llm = get_llm()
 
@@ -18,5 +20,14 @@ def draft_node(state):
     response = llm.invoke(prompt)
 
     state["generated_post"] = response.content
+
+    duration = time.time() - start
+
+    state["trace"].log_step(
+        "draft_node",
+        {"topic": state["topic"]},
+        {"generated_post": response.content},
+        duration
+    )
 
     return state

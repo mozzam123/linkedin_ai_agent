@@ -1,4 +1,5 @@
 from typing import TypedDict, Optional, List
+from app.core.tracing import TraceCollector
 
 
 class LinkedInPostState(TypedDict):
@@ -19,3 +20,5 @@ class LinkedInPostState(TypedDict):
     errors: List[str]
 
     iteration_count: int
+
+    trace: TraceCollector

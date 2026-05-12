@@ -2,6 +2,8 @@ from fastapi import FastAPI
 from app.workflows.graphs.linkedin_graph import workflow
 from app.db.init_db import init_db
 from app.api.routes.review_routes import router as review_router
+from app.core.tracing import TraceCollector
+
 
 app = FastAPI()
 
@@ -27,6 +29,7 @@ async def run_workflow():
         "status": None,
         "errors": [],
         "iteration_count": 0,
+        "trace": TraceCollector(),
     }
 
     result = workflow.invoke(initial_state)
