@@ -22,3 +22,9 @@ class LinkedInPostState(TypedDict):
     iteration_count: int
 
     trace: TraceCollector
+
+    ai_research: Optional[str]
+
+    startup_research: Optional[str]
+
+    tools_research: Optional[str]

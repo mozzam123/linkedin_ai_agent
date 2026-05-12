@@ -6,7 +6,7 @@ from app.schemas.evaluation_schema import PostEvaluation
 import time
 
 
-def critique_node(state: LinkedInPostState):
+async def critique_node(state: LinkedInPostState):
 
     start = time.time()
 
@@ -34,7 +34,7 @@ def critique_node(state: LinkedInPostState):
     - concise feedback
     """
 
-    response = structured_llm.invoke(prompt)
+    response = await structured_llm.invoke(prompt)
 
     state["score"] = response.score
     state["critique"] = response.feedback

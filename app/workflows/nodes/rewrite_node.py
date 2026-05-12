@@ -3,7 +3,7 @@ import time
 from app.services.llm_service import get_llm
 
 
-def rewrite_node(state: LinkedInPostState):
+async def rewrite_node(state: LinkedInPostState):
     start = time.time()
 
     llm = get_llm()
@@ -27,7 +27,7 @@ def rewrite_node(state: LinkedInPostState):
     - engaging
     """
 
-    response = llm.invoke(prompt)
+    response = await llm.invoke(prompt)
 
     state["generated_post"] = response.content
 

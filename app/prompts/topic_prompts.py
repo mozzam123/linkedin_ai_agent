@@ -2,7 +2,6 @@ TOPIC_GENERATION_PROMPT = """
 Generate ONE trending LinkedIn post topic related to:
 - AI engineering
 - LLMs
-- FastAPI
 - AI agents
 - developer productivity
 - startups

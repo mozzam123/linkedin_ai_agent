@@ -32,7 +32,7 @@ async def run_workflow():
         "trace": TraceCollector(),
     }
 
-    result = workflow.invoke(initial_state)
+    result = await workflow.invoke(initial_state)
 
     return result
 
