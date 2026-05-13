@@ -2,7 +2,7 @@ from app.workflows.state.linkedin_state import LinkedInPostState
 from app.tools.research_tool import research_topic
 
 
-async def research_node(state: LinkedInPostState):
+def research_node(state: LinkedInPostState):
 
     topic = state["topic"]
 

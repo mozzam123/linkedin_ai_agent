@@ -15,9 +15,14 @@ async def get_pending_posts():
         LinkedInPost.status == "under_review"
     ).all()
 
+    total_count = len(posts)
+
     db.close()
 
-    return posts
+    return {
+        "total_count": total_count,
+        "posts": posts
+    }
 
 
 # Endpoint to approve a post
