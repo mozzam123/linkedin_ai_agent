@@ -12,8 +12,6 @@ def save_workflow_run(state):
         topic=state["topic"],
         status="completed",
         final_score=state.get("score"),
-        duration_seconds=state["trace"].get_duration(),
-        trace=state["trace"].get_trace()
     )
 
     db.add(run)
