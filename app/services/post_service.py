@@ -13,7 +13,7 @@ def save_post(state):
         generated_post=state["generated_post"],
         critique=state["critique"],
         score=state["score"],
-        final_post=state["final_post"],
+        final_post=state["generated_post"],
         status=state["status"],
     )
 

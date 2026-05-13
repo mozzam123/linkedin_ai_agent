@@ -13,3 +13,6 @@ __pycache__/
 
 linkedin_ai.db
 linkedin_ai.db-journal
+
+# Playwright
+playwright_user_data/
