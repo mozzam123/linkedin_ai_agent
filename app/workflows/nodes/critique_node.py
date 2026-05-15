@@ -1,51 +1,42 @@
-from app.workflows.state.linkedin_state import LinkedInPostState
-
-from app.services.llm_service import get_llm
-
-from app.schemas.evaluation_schema import PostEvaluation
 import time
-
+from app.workflows.state.linkedin_state import LinkedInPostState
+from app.services.llm_service import get_llm
+from app.schemas.evaluation_schema import PostEvaluation
 
 def critique_node(state: LinkedInPostState):
+    if "errors" not in state or state["errors"] is None:
+        state["errors"] = []
 
-    start = time.time()
+    try:
+        start = time.time()
+        llm = get_llm()
+        structured_llm = llm.with_structured_output(PostEvaluation)
 
-    llm = get_llm()
+        post = state["generated_post"]
+        prompt = f"""
+        Evaluate this LinkedIn post.
 
-    structured_llm = llm.with_structured_output(PostEvaluation)
+        Post:
+        {post}
 
-    post = state["generated_post"]
+        Evaluate:
+        - clarity
+        - engagement
+        - authenticity
+        - readability
+        - hook quality
 
-    prompt = f"""
-    Evaluate this LinkedIn post.
+        Return:
+        - score out of 10
+        - concise feedback
+        """
 
-    Post:
-    {post}
-
-    Evaluate:
-    - clarity
-    - engagement
-    - authenticity
-    - readability
-    - hook quality
-
-    Return:
-    - score out of 10
-    - concise feedback
-    """
-
-    response = structured_llm.invoke(prompt)
-
-    state["score"] = response.score
-    state["critique"] = response.feedback
-
-    duration = time.time() - start
-
-    # state["trace"].log_step(
-    #     "draft_node",
-    #     {"topic": state["topic"]},
-    #     {"generated_post": response.content},
-    #     duration
-    # )
+        response = structured_llm.invoke(prompt)
+        state["score"] = response.score
+        state["critique"] = response.feedback
+        
+    except Exception as e:
+        state["errors"].append(f"Error in critique_node: {str(e)}")
+        state["status"] = "failed"
 
     return state
