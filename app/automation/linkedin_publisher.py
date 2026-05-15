@@ -9,15 +9,11 @@ def publish_to_linkedin(post_content: str):
 
     user_data_dir="./playwright_user_data",
 
-    headless=False
+    headless=True
 
 )
 
         page = browser.new_page()
-
-        page.goto("https://www.linkedin.com")
-
-        input("Login manually and press ENTER here...")
 
         page.goto("https://www.linkedin.com/feed/")
 
@@ -27,13 +23,23 @@ def publish_to_linkedin(post_content: str):
 
         page.wait_for_timeout(3000)
 
-        editor = page.locator('[contenteditable="true"]').first
+        modal = page.locator('[role="dialog"]')
+
+        editor = modal.locator('[contenteditable="true"]').first
 
         editor.click()
 
+        editor.press_sequentially(post_content)
+
         page.wait_for_timeout(2000)
 
-        page.keyboard.type(post_content)
+        modal.get_by_role(
+        "button",
+        name="Post",
+        exact=True
+        ).click()
 
-        page.wait_for_timeout(3000)
+        page.wait_for_timeout(4000)
+
+        # input("Press ENTER to close browser...")
         # browser.close()

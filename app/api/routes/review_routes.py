@@ -20,11 +20,22 @@ async def get_pending_posts():
 
     total_count = len(posts)
 
-    db.close()
+    formatted_posts = []
+
+    for post in posts:
+
+        formatted_posts.append({
+            "id": post.id,
+            "topic": post.topic,
+            # "generated_post": post.generated_post,
+            "critique": post.critique,
+            "score": post.score,
+            "status": post.status,
+        })
 
     return {
-        "total_count": total_count,
-        "posts": posts
+        "total": total_count,
+        "posts": formatted_posts
     }
 
 
