@@ -1,5 +1,5 @@
 REWRITE_PROMPT = """
-Improve this LinkedIn post.
+Rewrite this LinkedIn post applying the critique below.
 
 Original Post:
 {post}
@@ -7,8 +7,13 @@ Original Post:
 Critique:
 {critique}
 
-Improve the post while keeping it:
-- concise
-- authentic
-- engaging
+Rules:
+- Fix the PRIORITY FIX first
+- Keep the core insight intact — don't invent new content
+- Keep it under 200 words
+- Every paragraph max 2 sentences
+- Don't add emojis or hashtags
+- The new version must feel sharper, not longer
+
+Return only the rewritten post.
 """

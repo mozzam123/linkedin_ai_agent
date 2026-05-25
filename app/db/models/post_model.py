@@ -1,5 +1,5 @@
-from sqlalchemy import Column, Integer, String, Float, Text
-
+from sqlalchemy import Column, Integer, String, Float, Text, DateTime
+from sqlalchemy.sql import func
 from app.db.session import Base
 
 
@@ -26,3 +26,5 @@ class LinkedInPost(Base):
     approved_by = Column(String, nullable=True)
 
     review_comments = Column(Text, nullable=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
