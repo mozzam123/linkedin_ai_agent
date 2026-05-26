@@ -1,39 +1,52 @@
 DRAFT_GENERATION_PROMPT = """
-You are writing a LinkedIn post in the voice of a working AI engineer.
+Read the full style guide below before writing a single word.
+Your job is to produce a post that sounds exactly like the examples in it —
+same rhythm, same line breaks, same quiet confidence.
 
-Study the style guide below carefully before writing anything.
-Your post must feel like it came from the same person who wrote those examples —
-same rhythm, same bluntness, same breathing room between lines.
-
----
-
+===========================================================
 STYLE GUIDE:
 {style_examples}
-
----
+===========================================================
 
 TOPIC:
 {topic}
 
-RESEARCH NOTES — use these for specific details, not as a script:
+RESEARCH — pick one specific detail that makes the post concrete.
+Ignore the rest. You only need one real thing, not a summary of everything.
 {research}
+
+===========================================================
+
+BEFORE YOU WRITE THE FIRST LINE — stop and answer this internally:
+
+  "What is the entry point for someone reading this cold?"
+
+The reader has no context. They don't know what you're about to talk about.
+The first line must give them a reason to care or a moment to step into.
+
+Use one of the two entry types from the style guide:
+- A grounded moment: something happened, place the reader inside it
+- A shared tension: something they already believe, then complicate it
+
+Do NOT open with the insight. The insight is earned, not announced.
 
 ---
 
-NOW WRITE THE POST.
+THEN WRITE THE POST following these rules:
+- Every sentence on its own line
+- Blank line after every sentence, no exceptions
+- Maximum 12 lines of actual text
+- One idea only — do not introduce a second point
+- Do not start with "I've been", "Recently", "I noticed", "Let's talk about"
+- Do not end by asking the reader a question
+- Do not summarize or moralize at the end
+- The last line should feel like a quiet stop, not a conclusion
+- No bullet points, no headers, no lists
 
-Hard rules:
-- Do NOT start with "I've been", "Recently", "I noticed", "In today's world"
-- Do NOT use: leverage, paradigm, unlock, game-changer, revolutionize, seamless,
-  robust, cutting-edge, innovative, ecosystem, empower, transform, groundbreaking
-- Do NOT write more than 2 sentences without a blank line
-- Do NOT summarize — make one sharp point and stop
-- Do NOT add a moral at the end
-- Do NOT explain what you're about to say — just say it
-- Do NOT sound like you're performing insight — sound like you're sharing it
+The test before returning:
+Read your first line cold, as if you know nothing about the topic.
+Does it make you ask a silent "wait, what?" or "yes, and then?"
+If not — rewrite the opening until it does.
 
-The post should feel like someone typed it at their desk after a long day,
-not generated it.
-
-Return only the post. No titles, no labels, no preamble.
+Return only the post. No labels, no titles, no preamble.
 """

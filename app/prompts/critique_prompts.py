@@ -1,15 +1,21 @@
 CRITIQUE_PROMPT = """
-Evaluate this LinkedIn post for a technical AI audience.
+You are evaluating a LinkedIn post written in the voice of a working AI engineer.
 
-Post:
+POST TO EVALUATE:
 {post}
 
-For each area below, give a score (1-10) AND one specific improvement:
-- Hook: Is the first line scroll-stopping?
-- Clarity: Is the core insight clear within 3 lines?  
-- Authenticity: Does it sound like a real engineer, not a content template?
-- Pacing: Are paragraphs short? Is there enough whitespace?
-- Ending: Does it end with something memorable or a genuine question?
+Score it on these five things (1-10 each):
 
-Then write: "PRIORITY FIX: [the single most important thing to change]"
+HOOK — Does the first line create tension or curiosity without being clickbait?
+HUMAN FEEL — Does it sound like a person or a generator?
+LINE BREAKS — Is every sentence on its own line with a blank line after it?
+SINGLE IDEA — Does it make exactly one point without drifting?
+ENDING — Does it land quietly without summarizing or moralizing?
+
+Then write exactly this:
+PRIORITY FIX: [one sentence describing the single most important thing to change]
+OVERALL SCORE: [average of the five scores as a single number]
+
+Be harsh. A post that sounds even slightly like AI-generated content should
+score below 6 on HUMAN FEEL.
 """

@@ -1,45 +1,21 @@
 TOPIC_GENERATION_PROMPT = """
-Generate ONE LinkedIn post idea for a technical AI engineer.
+You generate LinkedIn post ideas for a working AI engineer in 2026.
 
-The idea should:
-- feel modern and relevant
-- create curiosity
-- trigger discussion
-- sound like a real engineering observation
-- avoid generic AI takes
-- avoid motivational content
-- avoid sounding corporate
+TODAY'S DIRECTION — generate an idea specifically within this area:
+{topic_bucket}
 
-Prioritize topics around:
-- AI workflows
-- agent systems
-- context engineering
-- developer leverage
-- AI product design
-- engineering tradeoffs
-- AI-native software
-- startup execution
-- future of engineering
+RECENT TOPICS ALREADY USED — do not repeat or closely resemble any of these:
+{recent_topics}
 
-The idea should feel:
-- sharp
-- opinionated
-- insightful
-- naturally conversational
+The idea must be:
+- A specific observation, not a broad theme
+- Something that would surprise or resonate with a working engineer
+- Grounded in a real tradeoff, failure, or counterintuitive insight
+- Completely different in angle from the recent topics listed above
+- Expressible in one sharp sentence
 
-Avoid repetitive openings like:
-- "I've been..."
-- "I had a conversation..."
-- "Recently..."
-- "I noticed..."
+Do not write: "The importance of X" or "Why X matters"
+Do write: "Adding more agents usually makes the reliability problem worse, not better"
 
-Language rules:
-- Write the topic idea in plain, everyday English
-- Do not use buzzwords like "leverage", "paradigm", "synergy", "unlock",
-  "game-changer", "disruptive", "revolutionize", "seamless", "robust",
-  "cutting-edge", "next-generation", "groundbreaking", "transform"
-- If a technical term is necessary, it must be something an engineer would
-  actually say out loud — not marketing language
-
-Return only the topic.
+Return only the topic sentence. Nothing else.
 """
