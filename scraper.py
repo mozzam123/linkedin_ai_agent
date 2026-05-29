@@ -1,37 +1,43 @@
 import random
-import time
 import re
+import time
+
 from playwright.sync_api import sync_playwright
 
 from app.core.config import settings
 
-# ── Playwright selectors ───────────────────────────────────────────────────────
-# LinkedIn switched to hashed class names in 2025 — these change every deploy.
-# All selectors below use stable HTML attributes instead of class names.
-# If scraping breaks again, run find_selectors.py to rediscover them.
+
+# ── Stable-ish LinkedIn selectors ────────────────────────────────────────────
 SELECTORS = {
-    # Feed post container — LinkedIn now marks each feed item as role="listitem"
-    # with a unique componentkey attribute. This is stable across deploys.
-    "post_container": "div[role='listitem'][componentkey]",
 
-    # Author display name — sits inside an anchor with /in/ profile URL
-    # We extract it from the aria-label on the container or the anchor text
-    "author_link": "a[href*='/in/']",
+    # Better feed container selector
+    "post_container": "div[data-id]",
 
-    # Post text — LinkedIn wraps post body in a span with dir="ltr"
-    # Fallback to any div with data-test-id containing 'main-feed-activity'
-    "post_text": "span[dir='ltr'], div[data-test-id*='main-feed-activity']",
+    # Author/profile links
+    "author_links": """
+        a[href*='/in/'],
+        a[href*='/company/']
+    """,
 
-    # Post URL — the timestamp anchor always links to /feed/update/
-    "timestamp_link": "a[href*='/feed/update/'], a[href*='/posts/']",
+    # Post URL
+    "timestamp_link": """
+        a[href*='/feed/update/'],
+        a[href*='/posts/'],
+        a[href*='activity']
+    """,
 
-    # Poll signal — polls have a specific role
-    "poll_signal": "[data-test-id*='poll'], div[role='radiogroup']",
+    # Post type
+    "poll_signal": """
+        [data-test-id*='poll'],
+        div[role='radiogroup']
+    """,
 
-    # Article signal
-    "article_signal": "div[data-test-id*='article'], a[href*='/pulse/']",
+    "article_signal": """
+        div[data-test-id*='article'],
+        a[href*='/pulse/']
+    """,
 
-    # Login / authwall detection
+    # Login detection
     "login_signals": [
         "login",
         "authwall",
@@ -40,45 +46,45 @@ SELECTORS = {
     ],
 }
 
+
+# ── Noise cleanup patterns ───────────────────────────────────────────────────
 NOISE_PATTERNS = [
 
     r"Feed post",
 
     r"Promoted",
 
-    r"\bfollows\b",
-
-    r"\bFollow\b",
-
     r"\d[\d,]* followers",
 
     r"Like\s+Comment\s+Repost\s+Send",
 
-    r"React\s+Comment",
-
     r"Copy link",
 
     r"Open menu",
-
 ]
 
-def _is_promoted(container) -> bool:
-    try:
-        text = container.inner_text().lower()
-        return "promoted" in text
-    except Exception:
-        return False
+
+# ── Exceptions ───────────────────────────────────────────────────────────────
+class ScraperError(Exception):
+    pass
+
+
+class SessionExpiredError(ScraperError):
+    pass
+
+
+# ── Utility helpers ──────────────────────────────────────────────────────────
+def _is_session_expired(url: str) -> bool:
+
+    return any(
+        keyword in url.lower()
+        for keyword in SELECTORS["login_signals"]
+    )
+
 
 def _clean_text(text: str) -> str:
 
-    """
-
-    Remove LinkedIn UI noise and normalize whitespace.
-
-    """
-
     if not text:
-
         return ""
 
     cleaned = text
@@ -86,366 +92,483 @@ def _clean_text(text: str) -> str:
     for pattern in NOISE_PATTERNS:
 
         cleaned = re.sub(
-
             pattern,
-
             "",
-
             cleaned,
-
-            flags=re.IGNORECASE
-
+            flags=re.IGNORECASE,
         )
-
-    # Remove excessive whitespace/newlines
 
     cleaned = re.sub(r"\s+", " ", cleaned)
 
     return cleaned.strip()
 
-def _looks_like_post_body(text: str) -> bool:
 
-    """
+def _word_count(text: str) -> int:
 
-    Heuristics to decide whether a text block
-
-    is likely to be the real post body.
-
-    """
-
-    if not text:
-
-        return False
-
-    text = text.strip()
-
-    # Too short
-
-    if len(text.split()) < 8:
-
-        return False
-
-    # Ignore obvious UI text
-
-    blacklist = [
-
-        "followers",
-
-        "follow",
-
-        "like",
-
-        "comment",
-
-        "repost",
-
-        "send",
-
-        "copy link",
-
-        "open menu",
-
-    ]
-
-    lower = text.lower()
-
-    if any(word in lower for word in blacklist):
-
-        return False
-
-    return True
-
-class ScraperError(Exception):
-    """Raised when the scraper cannot complete due to a non-recoverable error."""
-    pass
+    return len(text.split())
 
 
-class SessionExpiredError(ScraperError):
-    """Raised when the LinkedIn session has expired and the user must log in again."""
-    pass
+def _is_promoted(container) -> bool:
 
-
-def _is_session_expired(url: str) -> bool:
-    return any(kw in url for kw in SELECTORS["login_signals"])
-
-
-def _extract_post_url(container) -> str | None:
-    """
-    Pull the individual post URL from the timestamp anchor inside a container.
-    Returns an absolute URL, or None if not found.
-    """
     try:
-        links = container.locator(SELECTORS["timestamp_link"]).all()
+        text = container.inner_text().lower()
+
+        return "promoted" in text
+
+    except Exception:
+        return False
+
+
+# ── Extraction helpers ───────────────────────────────────────────────────────
+def _extract_post_url(container) -> str | None:
+
+    try:
+
+        links = container.locator(
+            SELECTORS["timestamp_link"]
+        ).all()
+
+        print("\n--- LINK DEBUG ---")
+
         for link in links:
+
             href = link.get_attribute("href") or ""
-            if "/feed/update/" in href or "/posts/" in href:
-                # Strip query params for a clean URL
+
+            print(href)
+
+            if (
+                "/feed/update/" in href
+                or "/posts/" in href
+                or "activity" in href
+            ):
+
                 clean = href.split("?")[0]
+
                 if clean.startswith("/"):
                     return "https://www.linkedin.com" + clean
+
                 return clean
-        return None
-    except Exception:
-        return None
+
+    except Exception as exc:
+
+        print(f"URL EXTRACTION ERROR: {exc}")
+
+    return None
 
 
 def _extract_author_name(container) -> str:
 
-    """
-
-    Extract LinkedIn author/company name.
-
-    """
-
     try:
 
-        links = container.locator("a[href*='/in/'], a[href*='/company/']").all()
+        links = container.locator(
+            SELECTORS["author_links"]
+        ).all()
 
         for link in links:
 
             try:
 
-                text = (link.inner_text() or "").strip()
+                text = (
+                    link.inner_text() or ""
+                ).strip()
 
                 if not text:
-
                     continue
 
                 text = text.split("\n")[0].strip()
 
-                if 2 <= len(text) <= 80:
+                if text.lower() in [
+                    "follow",
+                    "message",
+                    "connect",
+                ]:
+                    continue
 
+                if 2 <= len(text) <= 80:
                     return text
 
             except Exception:
-
                 continue
 
     except Exception:
-
         pass
 
     return ""
 
 
 def _extract_author_url(container) -> str:
-    """Return the author's profile URL, empty string if not found."""
+
     try:
-        links = container.locator(SELECTORS["author_link"]).all()
+
+        links = container.locator(
+            SELECTORS["author_links"]
+        ).all()
+
         for link in links:
-            href = link.get_attribute("href") or ""
-            if "/in/" in href:
+
+            href = (
+                link.get_attribute("href") or ""
+            )
+
+            if (
+                "/in/" in href
+                or "/company/" in href
+            ):
+
                 clean = href.split("?")[0]
+
                 if clean.startswith("/"):
                     return "https://www.linkedin.com" + clean
+
                 return clean
-        return ""
-    except Exception:
-        return ""
-
-
-def _extract_post_text(container) -> str:
-
-    """
-
-    Extract only the meaningful LinkedIn post body.
-
-    """
-
-    candidates = []
-
-    try:
-
-        # Expand "see more" first
-
-        see_more_buttons = container.locator(
-
-            "button:has-text('see more')"
-
-        )
-
-        if see_more_buttons.count() > 0:
-
-            try:
-
-                see_more_buttons.first.click(timeout=1000)
-
-                time.sleep(random.uniform(0.5, 1.2))
-
-            except Exception:
-
-                pass
-
-        # Primary extraction strategy
-
-        spans = container.locator("span[dir='ltr']").all()
-
-        for span in spans:
-
-            try:
-
-                text = span.inner_text().strip()
-
-                text = _clean_text(text)
-
-                if _looks_like_post_body(text):
-
-                    candidates.append(text)
-
-            except Exception:
-
-                continue
-
-        # Return best candidate
-
-        if candidates:
-
-            return max(candidates, key=len)
 
     except Exception:
-
         pass
 
     return ""
 
 
-def _detect_post_type(container) -> str:
-    """Return 'article', 'poll', or 'text'."""
+def _expand_see_more(container) -> None:
+
     try:
-        if container.locator(SELECTORS["article_signal"]).count() > 0:
-            return "article"
-        if container.locator(SELECTORS["poll_signal"]).count() > 0:
-            return "poll"
+
+        buttons = container.locator(
+            "button:has-text('see more')"
+        )
+
+        if buttons.count() > 0:
+
+            try:
+
+                buttons.first.click(timeout=1000)
+
+                time.sleep(
+                    random.uniform(0.5, 1.2)
+                )
+
+            except Exception:
+                pass
+
     except Exception:
         pass
+
+
+def _extract_post_text(container) -> str:
+    """
+    TEMPORARY RAW EXTRACTION VERSION
+
+    First make extraction reliable.
+    Then improve cleaning later.
+    """
+
+    try:
+
+        _expand_see_more(container)
+
+        raw_text = container.inner_text()
+
+        cleaned = _clean_text(raw_text)
+
+        print("\n--- RAW POST TEXT ---")
+        print(cleaned[:1000])
+
+        return cleaned[:3000]
+
+    except Exception as exc:
+
+        print(f"TEXT EXTRACTION ERROR: {exc}")
+
+        return ""
+
+
+def _detect_post_type(container) -> str:
+
+    try:
+
+        if container.locator(
+            SELECTORS["article_signal"]
+        ).count() > 0:
+
+            return "article"
+
+        if container.locator(
+            SELECTORS["poll_signal"]
+        ).count() > 0:
+
+            return "poll"
+
+    except Exception:
+        pass
+
     return "text"
 
 
-def _word_count(text: str) -> int:
-    return len(text.split())
+# ── Main scraper ─────────────────────────────────────────────────────────────
+def scrape_linkedin_feed(
+    max_posts: int = None
+) -> list[dict]:
 
-
-def scrape_linkedin_feed(max_posts: int = None) -> list[dict]:
-    """
-    Open the LinkedIn feed using the saved browser session, scroll through it,
-    and collect raw post data.
-
-    Parameters
-    ----------
-    max_posts : int, optional
-        Maximum number of posts to collect.
-
-    Returns
-    -------
-    list[dict]
-        Each dict contains:
-        - post_url            : str
-        - author_name         : str
-        - author_linkedin_url : str
-        - post_text           : str
-        - post_type           : str  ('text', 'article', 'poll')
-    """
     if max_posts is None:
-        max_posts = settings.MAX_POSTS_TO_SCRAPE_PER_RUN
 
-    collected: list[dict] = []
-    seen_urls: set[str]   = set()
+        max_posts = (
+            settings.MAX_POSTS_TO_SCRAPE_PER_RUN
+        )
+
+    collected = []
+
+    seen_urls = set()
 
     with sync_playwright() as p:
-        browser = p.chromium.launch_persistent_context(
-        user_data_dir=settings.PLAYWRIGHT_SESSION_DIR,
-        headless=False,
-        args=[
-            "--start-maximized",
-        ],
-        viewport={"width": 1400, "height": 900},
-    )
-        page = browser.pages[0] if browser.pages else browser.new_page()
+
+        browser = (
+            p.chromium.launch_persistent_context(
+
+                user_data_dir=(
+                    settings.PLAYWRIGHT_SESSION_DIR
+                ),
+
+                headless=False,
+
+                args=[
+                    "--start-maximized",
+                ],
+
+                viewport={
+                    "width": 1400,
+                    "height": 900,
+                },
+
+                slow_mo=300,
+            )
+        )
+
+        page = (
+            browser.pages[0]
+            if browser.pages
+            else browser.new_page()
+        )
 
         try:
-            # ── Navigate ───────────────────────────────────────────────────
-            page.goto("https://www.linkedin.com/feed/", timeout=30_000)
+            # ── Open LinkedIn feed ───────────────────────
+            page.goto(
+                "https://www.linkedin.com/feed/",
+                timeout=30_000,
+            )
 
-            # Wait for feed to render — networkidle never fires on LinkedIn
-            time.sleep(5)
+            page.wait_for_timeout(5000)
 
-            # ── Session check ──────────────────────────────────────────────
+            # ── Session validation ──────────────────────
             if _is_session_expired(page.url):
+
                 raise SessionExpiredError(
-                    "LinkedIn redirected to a login or authwall page. "
-                    "Please log in again by running the session capture flow."
+                    "LinkedIn session expired."
                 )
 
-            # ── Scroll and collect ─────────────────────────────────────────
-            max_scroll_attempts = 10
-            scroll_attempt      = 0
+            # ── Scroll loop ─────────────────────────────
+            previous_height = 0
 
-            while len(collected) < max_posts and scroll_attempt < max_scroll_attempts:
+            stagnant_rounds = 0
 
-                time.sleep(2)  # Let newly scrolled posts render
+            while (
+                len(collected) < max_posts
+                and stagnant_rounds < 3
+            ):
 
-                containers = page.locator(SELECTORS["post_container"]).all()
+                time.sleep(2)
 
-                for container in containers:
+                count = page.locator(
+                    SELECTORS["post_container"]
+                ).count()
+
+                print(
+                    f"\n========== FOUND {count} CONTAINERS =========="
+                )
+
+                for i in range(count):
+
                     if len(collected) >= max_posts:
                         break
 
-                    post_url = _extract_post_url(container)
-                    if not post_url:
-                        continue
+                    try:
 
-                    if post_url in seen_urls:
-                        continue
+                        container = page.locator(
+                            SELECTORS["post_container"]
+                        ).nth(i)
 
-                    post_text = _extract_post_text(container)
+                        # ── DEBUG HTML ─────────────────
+                        html = container.inner_html()
 
-                    if _word_count(post_text) < settings.MIN_POST_WORD_COUNT:
-                        continue
+                        print(
+                            "\n========== HTML DEBUG =========="
+                        )
 
-                    author_name = _extract_author_name(container)
-                    author_url  = _extract_author_url(container)
-                    post_type   = _detect_post_type(container)
+                        print(html[:2000])
 
-                    seen_urls.add(post_url)
-                    collected.append({
-                        "post_url":            post_url,
-                        "author_name":         author_name,
-                        "author_linkedin_url": author_url,
-                        "post_text":           post_text,
-                        "post_type":           post_type,
-                    })
+                        print(
+                            "\n================================"
+                        )
 
+                        # ── Skip ads ───────────────────
+                        if _is_promoted(container):
 
+                            print(
+                                "\nSKIPPED PROMOTED"
+                            )
 
+                            continue
 
-                # Human-like scroll
-                page.evaluate("window.scrollBy(0, 1200)")
-                time.sleep(random.uniform(1.5, 3.0))
-                scroll_attempt += 1
+                        # ── URL extraction ────────────
+                        post_url = _extract_post_url(
+                            container
+                        )
+
+                        if not post_url:
+
+                            print(
+                                "\nNO POST URL"
+                            )
+
+                            continue
+
+                        if post_url in seen_urls:
+
+                            print(
+                                "\nDUPLICATE"
+                            )
+
+                            continue
+
+                        # ── Text extraction ───────────
+                        post_text = (
+                            _extract_post_text(
+                                container
+                            )
+                        )
+
+                        print(
+                            "\n--- FINAL POST TEXT ---"
+                        )
+
+                        print(post_text[:1000])
+
+                        # Relaxed threshold
+                        if _word_count(post_text) < 5:
+
+                            print(
+                                "\nTOO SHORT"
+                            )
+
+                            continue
+
+                        # ── Metadata ──────────────────
+                        author_name = (
+                            _extract_author_name(
+                                container
+                            )
+                        )
+
+                        author_url = (
+                            _extract_author_url(
+                                container
+                            )
+                        )
+
+                        post_type = (
+                            _detect_post_type(
+                                container
+                            )
+                        )
+
+                        # ── Build object ──────────────
+                        post_data = {
+
+                            "post_url": post_url,
+
+                            "author_name": author_name,
+
+                            "author_linkedin_url": (
+                                author_url
+                            ),
+
+                            "post_text": post_text,
+
+                            "post_type": post_type,
+                        }
+
+                        collected.append(post_data)
+
+                        seen_urls.add(post_url)
+
+                        print(
+                            "\n====== COLLECTED ======"
+                        )
+
+                        print(post_data)
+
+                    except Exception as inner_exc:
+
+                        print(
+                            f"\nPOST ERROR: {inner_exc}"
+                        )
+
+                # ── Human-like scrolling ──────────────
+                scroll_distance = random.randint(
+                    900,
+                    1800,
+                )
+
+                page.mouse.wheel(
+                    0,
+                    scroll_distance,
+                )
+
+                time.sleep(
+                    random.uniform(2.0, 4.0)
+                )
+
+                current_height = page.evaluate(
+                    "document.body.scrollHeight"
+                )
+
+                if current_height == previous_height:
+
+                    stagnant_rounds += 1
+
+                else:
+
+                    stagnant_rounds = 0
+
+                previous_height = current_height
 
         except SessionExpiredError:
             raise
 
         except Exception as exc:
-            print(
-                f"[linkedin_scraper] Unexpected error after collecting "
-                f"{len(collected)} posts: {exc}"
-            )
+
+            print(f"\nSCRAPER ERROR: {exc}")
+
             if not collected:
+
                 raise ScraperError(
-                    f"Scraper failed before collecting any posts: {exc}"
+                    f"Scraper failed before collecting posts: {exc}"
                 ) from exc
 
         finally:
+
             browser.close()
-    print('****collected: ')
+
+    print("\n\n========== FINAL POSTS ==========")
+
     print(collected)
 
     return collected
 
 
+# ── Run scraper ──────────────────────────────────────────────────────────────
 if __name__ == "__main__":
 
     posts = scrape_linkedin_feed()
 
-    print(f"Collected {len(posts)} posts")
+    print(
+        f"\nCollected {len(posts)} posts"
+    )

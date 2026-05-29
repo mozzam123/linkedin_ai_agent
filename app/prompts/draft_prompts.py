@@ -32,21 +32,30 @@ Do NOT open with the insight. The insight is earned, not announced.
 
 ---
 
-THEN WRITE THE POST following these rules:
+FORMATTING:
 - Every sentence on its own line
 - Blank line after every sentence, no exceptions
-- Maximum 12 lines of actual text
-- One idea only — do not introduce a second point
+- Maximum 12 lines of actual text (bullet/arrow lines count individually)
+- No headers, no bold, no hashtags, no emojis
+ 
+POINTERS — only when the content genuinely calls for it:
+- Bullets ( • ): listing 3-5 parallel things, max 8 words each, no full stops
+- Arrows ( → ): cause-effect or reveal, max 3 in a row, max 6 words each
+- Never mix bullets and arrows in the same post
+- When in doubt — skip pointers entirely and write plain lines
+ 
+CONTENT:
+- One idea only
 - Do not start with "I've been", "Recently", "I noticed", "Let's talk about"
 - Do not end by asking the reader a question
 - Do not summarize or moralize at the end
-- The last line should feel like a quiet stop, not a conclusion
-- No bullet points, no headers, no lists
-
-The test before returning:
-Read your first line cold, as if you know nothing about the topic.
-Does it make you ask a silent "wait, what?" or "yes, and then?"
-If not — rewrite the opening until it does.
-
+- No buzzwords: leverage, paradigm, unlock, game-changer, revolutionize,
+  seamless, robust, cutting-edge, innovative, ecosystem, transform
+ 
+THE TEST before returning:
+- Read the first line cold — does it make you ask "wait, what?" or "yes, and?"
+- If pointers were used — was there genuinely a list or a chain? Or just habit?
+- Does it sound like a person or a generator?
+ 
 Return only the post. No labels, no titles, no preamble.
 """

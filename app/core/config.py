@@ -17,7 +17,7 @@ class Settings:
     MAX_COMMENTS_PER_DAY             = 5    # hard ceiling, never exceed
     MIN_HOURS_BETWEEN_COMMENTS       = 2    # minimum gap between any two posted comments
     MAX_COMMENTS_PER_CREATOR_PER_48H = 1   # cooldown per creator
-    MIN_POST_WORD_COUNT              = 25   # skip posts shorter than this
+    MIN_POST_WORD_COUNT              = 5   # skip posts shorter than this
     RELEVANCE_SCORE_THRESHOLD        = 6.5  # skip posts scoring below this
     COMMENT_SELF_SCORE_THRESHOLD     = 7.0  # reject comments scoring below this
     MAX_COMMENT_GENERATION_ATTEMPTS  = 3    # rewrite loop limit per post

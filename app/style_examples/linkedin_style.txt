@@ -241,3 +241,87 @@ GOOD: "Our agent passed every eval. Then we gave it to real users."
 RULE: The first line must make the reader ask a silent question.
 Not a clickbait question. A genuine "wait, what?" or "yes, and then what?"
 That question is what pulls them to line two.
+
+
+
+
+---
+ 
+WHEN TO USE POINTERS — READ CAREFULLY
+=======================================
+Pointers are exceptions, not defaults.
+Most posts should have zero pointers.
+Only use them when the content genuinely calls for it.
+ 
+OPTION A — BULLET POINTS ( • )
+Use only when listing 3 or more parallel things.
+Never fewer than 3. Never more than 5.
+Each bullet is one short line — not a sentence with explanation.
+ 
+Example of correct use:
+ 
+  Three things that silently break agents in production:
+ 
+  • Retry logic that isn't idempotent
+  • State that gets lost between tool calls
+  • Output parsers that expect one format and get another
+ 
+  Most teams only find these after they've shipped.
+ 
+Rules:
+- The line before the bullets must set up the list clearly
+- Each bullet is max 8 words
+- No full stops at the end of bullets
+- Never use bullets for a list of 1 or 2 things — write them as lines instead
+- Never use bullets just to make the post look structured
+ 
+---
+ 
+OPTION B — ARROW POINTERS ( → )
+Use only for cause-effect chains or reveal moments.
+When you want to show what something leads to, or what's underneath.
+ 
+Example of correct use:
+ 
+  Everyone optimises the prompt.
+ 
+  Nobody looks at what surrounds it.
+ 
+  → The context it receives
+  → The retry logic wrapped around it
+  → The output parser that reads it
+ 
+  That's where production actually breaks.
+ 
+Rules:
+- Maximum 3 arrows in a row
+- Each arrow line is max 6 words
+- Only use arrows when there's a real chain or reveal — not just a list
+- Don't mix bullets and arrows in the same post
+ 
+---
+ 
+WHEN TO USE NOTHING (DEFAULT)
+Most posts. The insight carries itself without structure.
+If you're unsure whether to add pointers — don't.
+ 
+---
+ 
+COMBINED EXAMPLE OF HOW A POST LOOKS WITH POINTERS:
+ 
+  We gave our agent access to five tools.
+ 
+  It used the wrong one every third call.
+ 
+  Not randomly — predictably.
+ 
+  Always when the task had two valid options:
+ 
+  • Fetch from cache
+  • Fetch from live API
+ 
+  The model kept picking live when cache was fine.
+ 
+  Cost us 4x more than it should have.
+ 
+  Tool selection is a prompt problem. Not a model problem.
