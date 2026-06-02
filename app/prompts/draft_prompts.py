@@ -1,7 +1,7 @@
 DRAFT_GENERATION_PROMPT = """
 Read the full style guide below before writing a single word.
-Your job is to produce a post that sounds exactly like the examples in it —
-same rhythm, same line breaks, same quiet confidence.
+Your job is to produce a post that sounds exactly like the examples — same
+rhythm, same specificity, same quiet confidence. Not a content creator. An engineer.
 
 ===========================================================
 STYLE GUIDE:
@@ -11,51 +11,68 @@ STYLE GUIDE:
 TOPIC:
 {topic}
 
-RESEARCH — pick one specific detail that makes the post concrete.
-Ignore the rest. You only need one real thing, not a summary of everything.
+RESEARCH — pick ONE specific detail that makes the post concrete and credible.
+A number, a named tool, a timeline, a specific failure mode.
+Ignore everything else. One anchor beats a full summary every time.
 {research}
 
 ===========================================================
 
-BEFORE YOU WRITE THE FIRST LINE — stop and answer this internally:
+STEP 1 — BEFORE WRITING, DECIDE THREE THINGS INTERNALLY:
 
-  "What is the entry point for someone reading this cold?"
+1. ENTRY POINT
+   What is the first line a cold reader sees?
+   It must create a silent "wait, what?" or "yes — and then what?"
+   Choose: contradiction / specific moment / reframe
+   Do NOT open with a setup sentence. Start in the tension.
 
-The reader has no context. They don't know what you're about to talk about.
-The first line must give them a reason to care or a moment to step into.
+2. THE ONE ANCHOR
+   What is the single specific detail from research that proves this is lived experience?
+   A number. A named pattern. A specific failure. A timeline.
+   If you cannot name one, you are writing theory — start over.
 
-Use one of the two entry types from the style guide:
-- A grounded moment: something happened, place the reader inside it
-- A shared tension: something they already believe, then complicate it
+3. THE ENDING
+   Does this post want to drive comments, saves, or shares?
+   Comments → end with an unresolved observation or genuine question
+   Saves   → end with a one-line practical takeaway or named framework
+   Shares  → end with a named pattern that gives readers vocabulary
 
-Do NOT open with the insight. The insight is earned, not announced.
+STEP 2 — WRITE THE POST
 
----
-
-FORMATTING:
+FORMATTING RULES — these are laws:
 - Every sentence on its own line
 - Blank line after every sentence, no exceptions
-- Maximum 12 lines of actual text (bullet/arrow lines count individually)
+- Maximum 14 lines of actual text
 - No headers, no bold, no hashtags, no emojis
- 
-POINTERS — only when the content genuinely calls for it:
-- Bullets ( • ): listing 3-5 parallel things, max 8 words each, no full stops
-- Arrows ( → ): cause-effect or reveal, max 3 in a row, max 6 words each
+- Short fragments are good — even one-word lines work
+
+POINTER RULES — exceptions only:
+- Bullets ( • ): only for 3-5 parallel things, max 8 words each, no full stops
+- Arrows ( → ): only for cause-effect chains, max 3 in a row, max 6 words each
 - Never mix bullets and arrows in the same post
-- When in doubt — skip pointers entirely and write plain lines
- 
-CONTENT:
-- One idea only
-- Do not start with "I've been", "Recently", "I noticed", "Let's talk about"
-- Do not end by asking the reader a question
-- Do not summarize or moralize at the end
+- When in doubt — no pointers, just plain lines
+
+CONTENT RULES:
+- One idea only — never introduce a second point
+- Do NOT start with "I've been", "Recently", "I noticed", "Let's talk about"
+- Do NOT end with "What do you think?" or "Follow me for more"
+- Do NOT summarize or wrap up neatly at the end
 - No buzzwords: leverage, paradigm, unlock, game-changer, revolutionize,
-  seamless, robust, cutting-edge, innovative, ecosystem, transform
- 
-THE TEST before returning:
-- Read the first line cold — does it make you ask "wait, what?" or "yes, and?"
-- If pointers were used — was there genuinely a list or a chain? Or just habit?
-- Does it sound like a person or a generator?
- 
+  seamless, robust, cutting-edge, innovative, ecosystem, transform, empower
+
+STEP 3 — SELF-CHECK BEFORE RETURNING:
+
+Read your first line cold, as if you know nothing about the topic.
+Does it create a half-second pause? If not — rewrite the opening.
+
+Is there one specific anchor (number / named pattern / real failure)?
+If not — add one. Remove a vague line to make space.
+
+Does the ending leave something open or give something actionable?
+If it wraps up too neatly — cut the last line.
+
+Would a real engineer read this and think "someone who actually builds things wrote this"?
+If it sounds generated — rewrite until it doesn't.
+
 Return only the post. No labels, no titles, no preamble.
 """
