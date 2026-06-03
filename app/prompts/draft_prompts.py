@@ -1,7 +1,7 @@
 DRAFT_GENERATION_PROMPT = """
 Read the full style guide below before writing a single word.
-Your job is to produce a post that sounds exactly like the examples — same
-rhythm, same specificity, same quiet confidence. Not a content creator. An engineer.
+Your job is to produce a post that matches the voice, rhythm, and structure
+of the examples exactly — while optimising for the stated post goal.
 
 ===========================================================
 STYLE GUIDE:
@@ -11,68 +11,72 @@ STYLE GUIDE:
 TOPIC:
 {topic}
 
+POST GOAL:
+{post_goal}
+
 RESEARCH — pick ONE specific detail that makes the post concrete and credible.
-A number, a named tool, a timeline, a specific failure mode.
-Ignore everything else. One anchor beats a full summary every time.
+One real number, one real timeline, one specific system detail.
+Ignore everything else in the research. You only need one anchor.
 {research}
 
 ===========================================================
 
-STEP 1 — BEFORE WRITING, DECIDE THREE THINGS INTERNALLY:
+BEFORE WRITING — answer these internally:
 
 1. ENTRY POINT
-   What is the first line a cold reader sees?
-   It must create a silent "wait, what?" or "yes — and then what?"
-   Choose: contradiction / specific moment / reframe
-   Do NOT open with a setup sentence. Start in the tension.
+   What is the entry point for someone reading this cold?
+   Pick one:
+   - Contradiction: two things that shouldn't both be true
+   - Grounded moment: something happened, place the reader inside it
+   - Shared tension: something they believe, then you complicate it
+   Do NOT open with a setup sentence. Do NOT announce the insight cold.
 
-2. THE ONE ANCHOR
-   What is the single specific detail from research that proves this is lived experience?
-   A number. A named pattern. A specific failure. A timeline.
-   If you cannot name one, you are writing theory — start over.
+2. POST GOAL STRUCTURE
+   If IMPRESSIONS: contradiction hook → realisation moment → named pattern → sharp reframe
+   If COMMENTS: grounded moment → discovery → genuine open question at the end
+   If SAVES: problem → specific detail (number/timeline) → what changed → actionable last line
 
-3. THE ENDING
-   Does this post want to drive comments, saves, or shares?
-   Comments → end with an unresolved observation or genuine question
-   Saves   → end with a one-line practical takeaway or named framework
-   Shares  → end with a named pattern that gives readers vocabulary
+3. SPECIFICITY CHECK
+   Have you included at least one concrete detail — a number, a timeline,
+   a specific system name, a real failure mode?
+   If not, pull one from the research or invent a plausible specific.
+   Vague posts don't get saves or shares.
 
-STEP 2 — WRITE THE POST
+4. NAMING CHECK
+   If this post describes a known failure mode or pattern, name it.
+   Goodhart's Law, reward hacking, context pollution, prompt brittleness —
+   named patterns get shared. Unnamed observations stay personal.
 
-FORMATTING RULES — these are laws:
+---
+
+THEN WRITE THE POST:
+
+Format rules (non-negotiable):
 - Every sentence on its own line
-- Blank line after every sentence, no exceptions
-- Maximum 14 lines of actual text
-- No headers, no bold, no hashtags, no emojis
-- Short fragments are good — even one-word lines work
+- Blank line after every sentence, always
+- 150-300 words total
+- No headers, no bold, no hashtags in the body
+- Pointers only when content genuinely calls for it:
+  • Bullets: 3-5 parallel items, max 8 words each
+  → Arrows: cause-effect chain only, max 3 in a row
+  Never mix both in one post. Default is no pointers.
 
-POINTER RULES — exceptions only:
-- Bullets ( • ): only for 3-5 parallel things, max 8 words each, no full stops
-- Arrows ( → ): only for cause-effect chains, max 3 in a row, max 6 words each
-- Never mix bullets and arrows in the same post
-- When in doubt — no pointers, just plain lines
+Ending rules by goal:
+- IMPRESSIONS: end on a named pattern or sharp reframe. Closed but memorable.
+- COMMENTS: end on a genuine question from real curiosity. Not "what do you think?"
+- SAVES: end on one actionable line the reader can apply tomorrow.
 
-CONTENT RULES:
-- One idea only — never introduce a second point
-- Do NOT start with "I've been", "Recently", "I noticed", "Let's talk about"
-- Do NOT end with "What do you think?" or "Follow me for more"
-- Do NOT summarize or wrap up neatly at the end
-- No buzzwords: leverage, paradigm, unlock, game-changer, revolutionize,
-  seamless, robust, cutting-edge, innovative, ecosystem, transform, empower
+Content rules:
+- One idea only
+- No buzzwords (leverage, unlock, transform, seamless, robust, game-changer)
+- No filler phrases ("In today's world", "It's no secret that")
+- No summarizing at the end
+- No moral or lesson statement
 
-STEP 3 — SELF-CHECK BEFORE RETURNING:
-
-Read your first line cold, as if you know nothing about the topic.
-Does it create a half-second pause? If not — rewrite the opening.
-
-Is there one specific anchor (number / named pattern / real failure)?
-If not — add one. Remove a vague line to make space.
-
-Does the ending leave something open or give something actionable?
-If it wraps up too neatly — cut the last line.
-
-Would a real engineer read this and think "someone who actually builds things wrote this"?
-If it sounds generated — rewrite until it doesn't.
+FINAL TEST before returning:
+Read line one cold, as someone who knows nothing about this topic.
+Does it make you ask "wait, what?" or "yes — and then what?"
+If not, rewrite the opening until it does.
 
 Return only the post. No labels, no titles, no preamble.
 """

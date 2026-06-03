@@ -13,51 +13,39 @@ from app.workflows.nodes.validation_node import validation_node
 
 graph = StateGraph(LinkedInPostState)
 
-
-# -----------------------------
-# ADD NODES
-# -----------------------------
-
-graph.add_node("topic_node", topic_node)
-graph.add_node("research_node", research_node)
-graph.add_node("draft_node", draft_node)
-graph.add_node("critique_node", critique_node)
-graph.add_node("rewrite_node", rewrite_node)
+# ── Nodes ──────────────────────────────────────────────────────────────────────
+graph.add_node("topic_node",      topic_node)
+graph.add_node("research_node",   research_node)
+graph.add_node("draft_node",      draft_node)
+graph.add_node("critique_node",   critique_node)
+graph.add_node("rewrite_node",    rewrite_node)
 graph.add_node("validation_node", validation_node)
-graph.add_node("save_node", save_node)
+graph.add_node("save_node",       save_node)
 
-
-# -----------------------------
-# ENTRY POINT
-# -----------------------------
-
+# ── Entry ──────────────────────────────────────────────────────────────────────
 graph.set_entry_point("topic_node")
 
-
-# -----------------------------
-# NORMAL EDGES
-# -----------------------------
-
-graph.add_edge("topic_node", "research_node")
-
+# ── Fixed edges ────────────────────────────────────────────────────────────────
+graph.add_edge("topic_node",    "research_node")
 graph.add_edge("research_node", "draft_node")
+graph.add_edge("draft_node",    "critique_node")
+graph.add_edge("rewrite_node",  "critique_node")
+graph.add_edge("save_node",     END)
 
-graph.add_edge("draft_node", "critique_node")
 
-graph.add_edge("save_node", END)
-
-# -----------------------------
-# CONDITIONAL ROUTING
-# -----------------------------
-
+# ── Router: after critique ─────────────────────────────────────────────────────
 def route_after_critique(state: LinkedInPostState):
+    # Always coerce to float — never let None reach the comparison
+    score          = float(state.get("score") or 0.0)
+    iteration_count = int(state.get("iteration_count") or 0)
 
-    score = state.get("score", 0)
+    if state.get("status") == "failed":
+        return "save_node"
 
     if score >= 8:
         return "validation_node"
 
-    if state["iteration_count"] >= 3:
+    if iteration_count >= 3:
         state["status"] = "max_iterations_reached"
         return "validation_node"
 
@@ -70,31 +58,27 @@ graph.add_conditional_edges(
     route_after_critique,
     {
         "validation_node": "validation_node",
-        "rewrite_node": "rewrite_node",
-        "save_node": "save_node"  # Fallback target if global failure happens
+        "rewrite_node":    "rewrite_node",
+        "save_node":       "save_node",
     }
 )
 
 
-# -----------------------------
-# CONDITIONAL ROUTING (VALIDATION)
-# -----------------------------
-# NEW: Determines where to go after content rules are validated
+# ── Router: after validation ───────────────────────────────────────────────────
 def route_after_validation(state: LinkedInPostState):
-    # If the validation node itself or something upstream caught a code exception
     if state.get("status") == "failed":
         return "save_node"
 
-    # If it fails content rules (spam hashtags, too long) and we haven't looped too much,
-    # send it back to the rewrite loop to automatically optimize it.
-    if not state.get("is_valid", True) and state.get("iteration_count", 0) < 3:
-        # Append an explicit instruction for the rewrite node to consume via state if desired
-        state["critique"] = (state.get("critique", "") + 
-                             "\nAdditionally, fix these validation issues: " + 
-                             ", ".join(state.get("validation_errors", [])))
+    iteration_count = int(state.get("iteration_count") or 0)
+
+    if not state.get("is_valid", True) and iteration_count < 3:
+        state["critique"] = (
+            (state.get("critique") or "") +
+            "\nAdditionally, fix these validation issues: " +
+            ", ".join(state.get("validation_errors") or [])
+        )
         return "rewrite_node"
 
-    # Content is safe or loop limits were hit; proceed to save
     return "save_node"
 
 
@@ -103,19 +87,9 @@ graph.add_conditional_edges(
     route_after_validation,
     {
         "rewrite_node": "rewrite_node",
-        "save_node": "save_node"
+        "save_node":    "save_node",
     }
 )
 
-# -----------------------------
-# REWRITE LOOP
-# -----------------------------
-
-graph.add_edge("rewrite_node", "critique_node")
-
-
-# -----------------------------
-# COMPILE WORKFLOW
-# -----------------------------
-
+# ── Compile ────────────────────────────────────────────────────────────────────
 workflow = graph.compile()

@@ -1,44 +1,27 @@
 import time
 from app.workflows.state.linkedin_state import LinkedInPostState
 from app.services.llm_service import get_llm
+from app.prompts.rewrite_prompts import REWRITE_PROMPT
+
 
 def rewrite_node(state: LinkedInPostState):
     if "errors" not in state or state["errors"] is None:
         state["errors"] = []
 
     try:
-        start = time.time()
-        llm = get_llm()
+        llm       = get_llm()
+        post_goal = state.get("post_goal") or "IMPRESSIONS"
 
-        post = state["generated_post"]
-        critique = state["critique"]
-
-        prompt = f"""Rewrite this LinkedIn post applying the critique below.
-
-Original Post:
-{post}
-
-Critique:
-{critique}
-
-Rules:
-- Fix the PRIORITY FIX first
-- Keep the core insight intact — don't invent new content
-- Keep it under 200 words
-- Every paragraph max 2 sentences
-- Don't add emojis or hashtags unless they were in the original
-- The new version must feel sharper, not longer
-
-Return only the rewritten post.
-"""
+        prompt = REWRITE_PROMPT.format(
+            post=state["generated_post"],
+            critique=state["critique"],
+            post_goal=post_goal,
+        )
 
         response = llm.invoke(prompt)
-        state["generated_post"] = response.content
 
-        # Always keep final_post in sync with the latest rewrite
-        # This fixes the bug where final_post was saving the original draft
-        state["final_post"] = response.content
-
+        state["generated_post"]  = response.content
+        state["final_post"]      = response.content  # Always keep final_post in sync
         state["iteration_count"] += 1
 
     except Exception as e:

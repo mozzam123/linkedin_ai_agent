@@ -7,30 +7,24 @@ TODAY'S DIRECTION — generate an idea specifically within this area:
 RECENT TOPICS ALREADY USED — do not repeat or closely resemble any of these:
 {recent_topics}
 
-The idea must follow ONE of these three proven formats that drive reach:
+WHAT MAKES A STRONG TOPIC:
+A strong topic is a specific contradiction, failure, or counterintuitive
+observation — not a theme or a question.
 
-FORMAT 1 — CONTRADICTION
-Something that shouldn't be true but is. Creates instant curiosity.
-Example: "Our model scored higher on every eval. Production results got worse."
+WEAK: "The importance of context engineering"
+WEAK: "Why agents fail in production"
+STRONG: "Adding more context to the window made our outputs worse, not better"
+STRONG: "Our agent passed every eval then broke in the first hour of production"
+STRONG: "The human reviewers in our loop were accidentally training the model to please them"
 
-FORMAT 2 — SPECIFIC MOMENT
-A real thing that happened. Places the reader inside an experience.
-Example: "On day 3 of debugging we realised the bug wasn't in the code."
+The topic must also naturally support ONE of these post goals:
+- IMPRESSIONS: a contradiction or counterintuitive insight worth stopping for
+- COMMENTS: an open question or opinion others will react to strongly
+- SAVES: a specific failure with a fix that others can apply
 
-FORMAT 3 — REFRAME
-What everyone assumes, then the flip.
-Example: "Adding more agents to fix reliability usually makes it worse."
+Include the post goal in your response like this:
+TOPIC: <the topic sentence>
+GOAL: <IMPRESSIONS or COMMENTS or SAVES>
 
-Pick the format that fits the topic area naturally.
-
-The idea must be:
-- A specific observation, not a broad theme
-- Grounded in a real tradeoff, failure, or counterintuitive finding
-- Something a working engineer would actually encounter
-- Completely different from the recent topics listed above
-
-Do not write: "The importance of X" or "Why X matters"
-Do write the actual observation: "X breaks because of Y, not Z"
-
-Return only the topic idea as one sentence. Nothing else.
+Return only TOPIC and GOAL lines. Nothing else.
 """
