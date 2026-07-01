@@ -5,11 +5,11 @@ from playwright.sync_api import sync_playwright
 from app.core.config import settings
 from app.automation.linkedin_scraper import (
     _is_job_update, _extract_post_url, _extract_author_name,
-    _extract_author_url, _extract_post_text, _get_all_hrefs
+    _extract_author_url, _extract_post_text, _scroll_feed, _wait_for_posts,
 )
 
 print("\n" + "="*60)
-print("  Debug Scraper v3")
+print("  Debug Scraper v4")
 print("="*60)
 
 with sync_playwright() as p:
@@ -18,12 +18,21 @@ with sync_playwright() as p:
         headless=False,
     )
     page = browser.new_page()
-    page.goto("https://www.linkedin.com/feed/", timeout=30_000)
-    time.sleep(6)
+    page.goto("https://www.linkedin.com/feed/", timeout=60_000, wait_until="domcontentloaded")
 
-    for i in range(4):
-        page.evaluate("window.scrollBy(0, 1200)")
-        time.sleep(random.uniform(2, 3))
+    print("\n→ Waiting for posts to load...")
+    _wait_for_posts(page, min_containers=5)
+
+    print("→ Scrolling feed container (#workspace)...")
+    for i in range(5):
+        _scroll_feed(page, amount=800)
+        time.sleep(4)
+        n = page.locator("div[role='listitem'][componentkey]").count()
+        scroll_pos = page.evaluate("""() => {
+            const el = document.querySelector('#workspace');
+            return el ? el.scrollTop : window.scrollY;
+        }""")
+        print(f"  scroll {i+1}: {n} containers | scrollTop={scroll_pos}")
 
     containers = page.locator("div[role='listitem'][componentkey]").all()
     print(f"\n  Total containers: {len(containers)}")
@@ -40,15 +49,13 @@ with sync_playwright() as p:
             skipped_job += 1
             print(f"\n── Container {i} — SKIP (job update)")
             continue
-
         if not url:
             skipped_no_url += 1
-            print(f"\n── Container {i} — SKIP (no post url) | {wc} words | {text[:60].replace(chr(10),' ')}")
+            print(f"\n── Container {i} — SKIP (no url) | {wc}w | {text[:60].replace(chr(10),' ')}")
             continue
-
         if wc < 20:
             skipped_short += 1
-            print(f"\n── Container {i} — SKIP (too short: {wc} words)")
+            print(f"\n── Container {i} — SKIP (too short: {wc}w)")
             continue
 
         real += 1
