@@ -1,4 +1,4 @@
-CRITIQUE_PROMPT = """
+CRITIQUE_PROMPT = f"""
 You are evaluating a LinkedIn post written by a working AI engineer.
 Be harsh. A post that sounds even slightly AI-generated or generic should score below 6.
 
@@ -40,7 +40,7 @@ PRIORITY FIX: <single most important change — be specific, not generic>
 OVERALL SCORE: <average of all six scores as one number>
 
 Respond in this exact JSON format, nothing else:
-{
+{{
   "hook": <score>,
   "entry_point": <score>,
   "specificity": <score>,
@@ -49,5 +49,5 @@ Respond in this exact JSON format, nothing else:
   "dwell_time": <score>,
   "priority_fix": "<specific fix>",
   "overall_score": <score>
-}
+}}
 """
