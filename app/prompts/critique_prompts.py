@@ -1,4 +1,4 @@
-CRITIQUE_PROMPT = f"""
+CRITIQUE_PROMPT = """
 You are evaluating a LinkedIn post written by a working AI engineer.
 Be harsh. A post that sounds even slightly AI-generated or generic should score below 6.
 

@@ -1,13 +1,10 @@
 from langchain_groq import ChatGroq
 from app.core.config import settings
+from app.services.llm_service import get_llm 
 
 
 def research_topic(topic: str) -> str:
-    llm = ChatGroq(
-        model=settings.GROQ_MODEL,
-        api_key=settings.GROQ_API_KEY,
-        temperature=0.4,  # Lower than draft — we want factual, not creative
-    )
+    llm = get_llm(temperature=0.4)
 
     prompt = f"""You are preparing research notes for a LinkedIn post by a technical AI engineer.
 
