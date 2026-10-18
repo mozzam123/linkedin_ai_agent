@@ -19,6 +19,9 @@ One real number, one real timeline, one specific system detail.
 Ignore everything else in the research. You only need one anchor.
 {research}
 
+EXTRACTED FACTS (use at least one):
+{extracted_facts}
+
 ===========================================================
 
 BEFORE WRITING — answer these internally:
@@ -39,7 +42,7 @@ BEFORE WRITING — answer these internally:
 3. SPECIFICITY CHECK
    Have you included at least one concrete detail — a number, a timeline,
    a specific system name, a real failure mode?
-   If not, pull one from the research or invent a plausible specific.
+   If not, pull one from the research or extracted facts or invent a plausible specific.
    Vague posts don't get saves or shares.
 
 4. NAMING CHECK

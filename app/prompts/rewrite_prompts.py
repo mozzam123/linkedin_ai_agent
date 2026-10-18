@@ -9,6 +9,9 @@ ORIGINAL POST:
 CRITIQUE:
 {critique}
 
+TARGETED IMPROVEMENTS:
+{targeted_advice}
+
 Fix the PRIORITY FIX first. Everything else is secondary.
 
 GOAL-SPECIFIC REWRITE RULES:

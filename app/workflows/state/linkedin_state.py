@@ -9,6 +9,7 @@ class LinkedInPostState(TypedDict):
     generated_post: Optional[str]
     critique: Optional[str]
     score: Optional[float]
+    critique_scores: Optional[dict]
     final_post: Optional[str]
     status: Optional[str]
     errors: List[str]
@@ -19,3 +20,4 @@ class LinkedInPostState(TypedDict):
     ai_research: Optional[str]
     startup_research: Optional[str]
     tools_research: Optional[str]
+    extracted_facts: Optional[List[str]]

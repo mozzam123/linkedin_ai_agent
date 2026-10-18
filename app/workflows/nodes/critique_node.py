@@ -80,10 +80,28 @@ def critique_node(state: LinkedInPostState):
             f"Goal Alignment: {parsed.get('goal_alignment')}/10 | "
             f"Dwell Time: {parsed.get('dwell_time')}/10"
         )
+        # Store sub-scores for targeted rewrites
+        state["critique_scores"] = {
+            "hook": parsed.get("hook"),
+            "entry_point": parsed.get("entry_point"),
+            "specificity": parsed.get("specificity"),
+            "human_feel": parsed.get("human_feel"),
+            "goal_alignment": parsed.get("goal_alignment"),
+            "dwell_time": parsed.get("dwell_time"),
+        }
 
     except Exception as e:
         state["errors"].append(f"Error in critique_node: {str(e)}")
         state["status"] = "failed"
         state["score"]  = float(state.get("score") or 0.0)
+        # Provide default scores on error
+        state["critique_scores"] = {
+            "hook": 5.0,
+            "entry_point": 5.0,
+            "specificity": 5.0,
+            "human_feel": 5.0,
+            "goal_alignment": 5.0,
+            "dwell_time": 5.0,
+        }
 
     return state

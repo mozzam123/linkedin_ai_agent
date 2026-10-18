@@ -9,6 +9,8 @@ from app.workflows.nodes.rewrite_node import rewrite_node
 from app.workflows.nodes.save_node import save_node
 from app.workflows.nodes.research_node import research_node
 from app.workflows.nodes.validation_node import validation_node
+from app.workflows.nodes.research_distillation_node import research_distillation_node
+from app.workflows.nodes.format_check_node import format_check_node
 
 
 graph = StateGraph(LinkedInPostState)
@@ -16,7 +18,9 @@ graph = StateGraph(LinkedInPostState)
 # ── Nodes ──────────────────────────────────────────────────────────────────────
 graph.add_node("topic_node",      topic_node)
 graph.add_node("research_node",   research_node)
+graph.add_node("research_distillation_node", research_distillation_node)
 graph.add_node("draft_node",      draft_node)
+graph.add_node("format_check_node", format_check_node)
 graph.add_node("critique_node",   critique_node)
 graph.add_node("rewrite_node",    rewrite_node)
 graph.add_node("validation_node", validation_node)
@@ -27,9 +31,11 @@ graph.set_entry_point("topic_node")
 
 # ── Fixed edges ────────────────────────────────────────────────────────────────
 graph.add_edge("topic_node",    "research_node")
-graph.add_edge("research_node", "draft_node")
-graph.add_edge("draft_node",    "critique_node")
-graph.add_edge("rewrite_node",  "critique_node")
+graph.add_edge("research_node", "research_distillation_node")
+graph.add_edge("research_distillation_node", "draft_node")
+graph.add_edge("draft_node",    "format_check_node")
+graph.add_edge("rewrite_node",  "format_check_node")
+graph.add_edge("format_check_node", "critique_node")
 graph.add_edge("save_node",     END)
 
 

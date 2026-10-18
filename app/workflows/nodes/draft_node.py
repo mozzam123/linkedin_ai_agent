@@ -16,11 +16,16 @@ def draft_node(state: LinkedInPostState):
         # post_goal tells the draft exactly what to optimise for
         post_goal = state.get("post_goal") or "IMPRESSIONS"
 
+        # Format extracted facts as a bulleted list
+        extracted_facts = state.get("extracted_facts") or []
+        facts_text = "\n".join([f"- {fact}" for fact in extracted_facts]) if extracted_facts else "No specific facts extracted."
+
         prompt = DRAFT_GENERATION_PROMPT.format(
             topic=state["topic"],
             research=state["research_notes"],
             style_examples=style_examples,
             post_goal=post_goal,
+            extracted_facts=facts_text,
         )
 
         response               = llm.invoke(prompt)
