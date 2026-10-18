@@ -7,7 +7,8 @@ def save_node(state: LinkedInPostState):
         state["errors"] = []
 
     try:
-        state["status"] = "under_review"
+        if state.get("status") != "failed":
+            state["status"] = "under_review"
         
         # Save actions executed sequentially
         save_post(state)

@@ -10,7 +10,7 @@ def save_workflow_run(state):
 
     run = WorkflowRun(
         topic=state["topic"],
-        status="completed",
+        status=state.get("status", "unknown"),
         final_score=state.get("score"),
     )
 

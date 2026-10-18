@@ -21,3 +21,5 @@ def research_node(state: LinkedInPostState):
         state["status"] = "failed"
 
     return state
+
+print('research_node completed')
