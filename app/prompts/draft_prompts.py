@@ -3,6 +3,10 @@ Read the full style guide below before writing a single word.
 Your job is to produce a post that matches the voice, rhythm, and structure
 of the examples exactly — while optimising for the stated post goal.
 
+NOTE ON THE EXAMPLES: the sample posts below are laid out one sentence per
+line for readability inside this prompt. Do NOT copy that layout. Write your
+post in short paragraphs of 1-3 sentences.
+
 ===========================================================
 STYLE GUIDE:
 {style_examples}
@@ -55,8 +59,9 @@ BEFORE WRITING — answer these internally:
 THEN WRITE THE POST:
 
 Format rules (non-negotiable):
-- Every sentence on its own line
-- Blank line after every sentence, always
+- Write in short paragraphs of 1-3 sentences, separated by one blank line
+- A single line on its own is fine for emphasis — but not every line.
+  One sentence per line for the whole post is the loudest AI tell there is.
 - 150-300 words total
 - No headers, no bold, no hashtags in the body
 - Emojis: optional, and rare. Use at most ONE, and only when it marks a real

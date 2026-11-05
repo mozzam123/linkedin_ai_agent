@@ -57,12 +57,60 @@ def _split_sentences(text: str) -> list[str]:
     return sentences
 
 
+def _depoetify(text: str) -> str:
+    """
+    The model mirrors the style examples' one-sentence-per-line layout even when
+    told not to. When nearly every block is a single sentence, regroup them into
+    2-3 sentence paragraphs. Pointer/code blocks are left untouched.
+    """
+    blocks = [b.strip() for b in re.split(r"\n\s*\n", text) if b.strip()]
+    if len(blocks) < 8:
+        return text
+
+    def is_pointer(block: str) -> bool:
+        return bool(
+            _BULLET.match(block)
+            or _ARROW.search(block)
+            or block.lstrip().startswith(("`", "```"))
+        )
+
+    single_sentence = sum(
+        1
+        for b in blocks
+        if not is_pointer(b)
+        and "\n" not in b
+        and (b.count(".") + b.count("!") + b.count("?")) <= 1
+    )
+    if single_sentence / len(blocks) < 0.8:
+        return text
+
+    out: list[str] = []
+    buffer: list[str] = []
+
+    def flush():
+        while buffer:
+            out.append(" ".join(buffer[:3]))
+            del buffer[:3]
+
+    for block in blocks:
+        if is_pointer(block):
+            flush()
+            out.append(block)
+        else:
+            buffer.append(block)
+    flush()
+
+    return "\n\n".join(out)
+
+
 def normalize_post(post: str) -> str:
     """
     Apply the house format rules without an LLM:
       - no markdown headers / bold
-      - one sentence per line, blank line between sentences
-      - bullets and arrow chains stay on their own lines
+      - paragraph structure is preserved (1-3 sentences per paragraph is fine)
+      - whitespace tidied: no trailing spaces, single blank line between blocks
+    Sentence-per-line is no longer forced — that cadence was the loudest
+    "AI-written" tell in the critique.
     """
     if not post:
         return post
@@ -74,24 +122,28 @@ def normalize_post(post: str) -> str:
 
     out: list[str] = []
     for raw_line in text.split("\n"):
-        line = raw_line.strip()
+        line = re.sub(r"[ \t]{2,}", " ", raw_line).strip()
         if not line:
+            # Collapse runs of blank lines into a single paragraph break
+            if out and out[-1] != "":
+                out.append("")
             continue
         if _BULLET.match(line) or _ARROW.search(line):
-            # Pointer lines are kept intact, without a blank line between them
+            # Keep pointer lines together as one list block
             if out and out[-1] == "" and len(out) >= 2 and _BULLET.match(out[-2] or ""):
                 out.pop()
             out.append(line)
-            out.append("")
             continue
-        for sentence in _split_sentences(line):
-            out.append(sentence)
+        out.append(line)
+        # A paragraph break after a pointer block keeps lists readable
+        if _BULLET.match(line):
             out.append("")
 
     while out and out[-1] == "":
         out.pop()
 
     normalized = "\n".join(out).strip()
+    normalized = _depoetify(normalized)
     normalized = _limit_emojis(normalized)
     return normalized or post
 
@@ -101,29 +153,22 @@ def check_format_compliance(post: str) -> list[str]:
     violations: list[str] = []
     lines = post.split("\n")
 
-    # Rule 1 & 2: no two consecutive non-pointer, non-empty lines
-    prev_non_empty = False
-    for line in lines:
-        stripped = line.strip()
-        if not stripped:
-            prev_non_empty = False
-            continue
-        is_pointer = bool(_BULLET.match(stripped) or _ARROW.search(stripped))
-        if prev_non_empty and not is_pointer:
+    # Rule 1: no single line should be a wall of text
+    for i, line in enumerate(lines):
+        if len(line.strip()) > 400:
             violations.append(
-                "Two consecutive non-empty lines found (missing blank line between sentences)."
+                f"Line {i + 1} is {len(line.strip())} characters — break it up."
             )
             break
-        prev_non_empty = not is_pointer
 
-    # Rule 3: word count between 150 and 300
+    # Rule 2: word count between 150 and 300
     word_count = len(post.split())
     if word_count < 150:
         violations.append(f"Word count too low: {word_count}. Minimum 150.")
     if word_count > 300:
         violations.append(f"Word count too high: {word_count}. Maximum 300.")
 
-    # Rule 4: no headers, bold or hashtags in the body
+    # Rule 3: no headers, bold or hashtags in the body
     for i, line in enumerate(lines):
         if line.strip().startswith("#"):
             violations.append(f"Line {i + 1}: Header-like line starting with '#'.")

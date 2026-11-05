@@ -42,7 +42,9 @@ If SAVES:
 - Someone should be able to screenshot the fix and apply it tomorrow
 
 FORMAT RULES (always apply):
-- Every sentence on its own line, blank line between each
+- Short paragraphs of 1-3 sentences, one blank line between them
+- Do NOT put every sentence on its own line — that cadence reads AI-written.
+  A lone line is fine for emphasis, but it should be the exception
 - 150-300 words total
 - No buzzwords, no filler, no summarizing at the end
 - Pointers only if genuinely needed:

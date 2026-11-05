@@ -22,32 +22,26 @@ SPECIFICITY (1-10)
 Is there at least one concrete detail — a number, a timeline, a named system?
 Zero specifics = 4 or below. One good anchor = 7+.
 
-HUMAN FEEL (1-10)
-Judge the VOICE only — ignore whether the idea is good.
+HUMAN FEEL (1-10) — score it mechanically, do not go by vibe:
+Start at 5, then add and subtract:
 
-Signals that it was written by a real engineer (each one earns credit):
-- Uneven rhythm: a 3-word line next to a long run-on one. Perfectly even
-  sentence lengths are the single biggest AI tell.
-- One raw artifact: an exact log line, error string, real code line, a
-  non-round number (27.4%, 11:42pm), a tool name nobody would invent.
-- An admission or aside: "I still don't know why" / "we were wrong about
-  this for a week" / a parenthetical thought.
-- Contractions and plain words ("didn't", "basically", "honestly").
-- Asymmetry: the post does NOT go neatly setup → 3 problems → 3 fixes →
-  lesson. Tidy symmetry, matched bullet lists, and a closing moral are
-  machine shapes.
-- Ending that just stops, instead of landing a manufactured insight.
+ADD 1 for each signal that is actually present (max +4):
+  a) RHYTHM: line and paragraph lengths visibly vary — a short line sits
+     next to a longer paragraph. Every sentence isolated on its own line,
+     or every sentence the same length, does NOT earn this.
+  b) ARTIFACT: an exact error string, log line, code fragment, or a
+     non-round number (41.2%, 11:42pm). Round numbers like 40% do not count.
+  c) ADMISSION: first-person uncertainty or being wrong — "I still don't
+     know why", "we were wrong about this for a week", a real aside.
+  d) PLAIN SPEECH: contractions and ordinary words, no corporate or
+     motivational phrasing anywhere.
 
-Scoring bands:
-- 9-10: reads like a Slack message from someone who shipped it. Messy,
-  specific, slightly unresolved.
-- 7-8: clearly human, but one or two lines are still polished.
-- 5-6: competent and clearly LLM-shaped — even cadence, tidy lists, no
-  admission, correct but bloodless.
-- 3-4: templated. Symmetric structure, bullets where prose belongs, every
-  sentence the same length, ends on a lesson.
-- 1-2: corporate/motivational, "In today's world", buzzwords, "What do
-  you think?" ending.
+SUBTRACT 1 for each machine tell present (max -3):
+  - a tidy symmetric list or problem→fix→lesson shape where prose belongs
+  - a closing moral, lesson, or manufactured insight
+  - perfectly uniform cadence, or every single sentence on its own line
+
+Clamp the result to 1-10 and report that number.
 
 Do not punish brevity or fragments — fragments are evidence of a human.
 Punish polish, symmetry, and tidy resolution.
