@@ -15,4 +15,5 @@ linkedin_ai.db
 linkedin_ai.db-journal
 
 # Playwright
+playwright_user_data_personal/
 playwright_user_data/

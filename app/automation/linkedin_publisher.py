@@ -1,11 +1,13 @@
 import os
 from playwright.sync_api import sync_playwright
 
+from app.core.config import settings
+
 
 def publish_to_linkedin(post_content: str):
     with sync_playwright() as p:
         browser = p.chromium.launch_persistent_context(
-            user_data_dir="./playwright_user_data", 
+            user_data_dir=settings.PLAYWRIGHT_SESSION_DIR,
             headless=True
         )
         page = browser.new_page()
