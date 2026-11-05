@@ -14,6 +14,16 @@ TARGETED IMPROVEMENTS:
 
 Fix the PRIORITY FIX first. Everything else is secondary.
 
+HUMAN VOICE (apply whenever the critique says the post reads AI-made):
+- Break the even rhythm. Put a 3-4 word line next to a long one.
+- Replace one tidy bullet or summary line with a raw artifact: an exact error
+  string, a log line, a single line of code, or a non-round number.
+- Add one admission or aside in first person ("I still don't know why").
+- Use contractions and plain words. Drop any sentence that sounds like it
+  was assembled rather than said.
+- Remove the closing moral. Stop where the thought stops.
+- Do not make it longer by adding filler — cut instead.
+
 GOAL-SPECIFIC REWRITE RULES:
 
 If IMPRESSIONS:
@@ -39,6 +49,8 @@ FORMAT RULES (always apply):
   • Bullets: 3-5 parallel items, max 8 words each
   → Arrows: cause-effect only, max 3 in a row
 - Never mix bullets and arrows
+- Emojis: at most one, only as a marker on a pointer line. Never in the first
+  or last line. Remove purely decorative ones (🚀 🔥 💡 🙌 🎯) entirely
 
 FINAL CHECK:
 Does line 1 make someone ask "wait, what?" before they see the rest?

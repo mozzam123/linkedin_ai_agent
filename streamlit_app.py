@@ -11,7 +11,8 @@ st.set_page_config(
 )
 
 # ─── Minimal CSS ───────────────────────────────────────────────────────────────
-st.markdown("""
+st.markdown(
+    """
 <style>
     .score-badge {
         display: inline-block;
@@ -39,32 +40,45 @@ st.markdown("""
         opacity: 1 !important;
     }
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 
 # ─── Sidebar – config ──────────────────────────────────────────────────────────
 with st.sidebar:
-    st.image("https://upload.wikimedia.org/wikipedia/commons/c/ca/LinkedIn_logo_initials.png", width=40)
+    st.image(
+        "https://upload.wikimedia.org/wikipedia/commons/c/ca/LinkedIn_logo_initials.png",
+        width=40,
+    )
     st.title("LinkedIn AI Agent")
     st.markdown("---")
 
     st.subheader("⚙️ Configuration")
-    groq_key = st.text_input("Groq API Key", type="password",
-                              value=os.getenv("GROQ_API_KEY", ""),
-                              help="Your Groq API key")
-    groq_model = st.selectbox("Model", [
-        "llama-3.3-70b-versatile",
-        "llama-3.1-8b-instant",
-        "gemma2-9b-it",
-    ])
+    groq_key = st.text_input(
+        "Groq API Key",
+        type="password",
+        value=os.getenv("GROQ_API_KEY", ""),
+        help="Your Groq API key",
+    )
+    groq_model = st.selectbox(
+        "Model",
+        [
+            "qwen/qwen3.8-27b",       # fastest, ~1s per call
+            "openai/gpt-oss-20b",     # reasoning model, slower (~14s per call)
+            "openai/gpt-oss-120b",
+        ],
+    )
 
     st.markdown("---")
-    st.caption("Workflow: Topic → Research → Draft → Critique → (Rewrite loop) → Review → Publish")
+    st.caption(
+        "Workflow: Topic → Research → Draft → Critique → (Rewrite loop) → Review → Publish"
+    )
 
 
 # ─── Session state defaults ────────────────────────────────────────────────────
 defaults = {
-    "stage": "idle",          # idle | running | review | approved | published
+    "stage": "idle",  # idle | running | review | approved | published
     "topic": "",
     "research_notes": "",
     "generated_post": "",
@@ -111,14 +125,22 @@ def run_workflow():
     os.environ["GROQ_MODEL"] = groq_model
 
     # Add project to path so imports work
-    project_path = os.path.join(os.path.dirname(__file__),
-                                "Linkedin AI Agent")
+    project_path = os.path.join(os.path.dirname(__file__), "Linkedin AI Agent")
     if project_path not in sys.path:
         sys.path.insert(0, project_path)
 
     st.session_state.stage = "running"
     st.session_state.log = []
     st.session_state.errors = []
+    # Clear any previous run's results so an empty output is never masked
+    # by a stale post from an earlier generation
+    st.session_state.topic = ""
+    st.session_state.research_notes = ""
+    st.session_state.generated_post = ""
+    st.session_state.edited_post = ""
+    st.session_state.critique = ""
+    st.session_state.score = None
+    st.session_state.iteration_count = 0
 
     progress = st.progress(0, text="Starting workflow…")
 
@@ -144,36 +166,37 @@ def run_workflow():
             "tools_research": None,
         }
 
-        steps = [
-            "Generating topic…",
-            "Researching topic…",
-            "Drafting post…",
-            "Critiquing draft…",
-            "Rewriting / validating…",
-            "Saving…",
-        ]
-        step_idx = 0
+        # Progress is driven by the node that just finished, so the bar and the
+        # label always match reality (the old version ran out of labels after
+        # the 5th step and sat on "Saving…" for the rest of the run).
+        node_progress = {
+            "topic_node":                 (10, "✅ Topic generated"),
+            "research_node":              (25, "✅ Research complete"),
+            "research_distillation_node": (35, "✅ Facts extracted"),
+            "draft_node":                 (50, "✅ Draft created"),
+            "format_check_node":          (62, "✅ Format checked"),
+            "critique_node":              (72, "✅ Critique done"),
+            "rewrite_node":               (80, "🔄 Rewriting…"),
+            "validation_node":            (92, "✅ Validated"),
+            "save_node":                  (97, "💾 Saving…"),
+        }
+        last_pct = 0
+        rewrite_round = 0
 
         for chunk in workflow.stream(initial_state):
             node_name = list(chunk.keys())[0]
             state = chunk[node_name]
 
-            node_labels = {
-                "topic_node":      "✅ Topic generated",
-                "research_node":   "✅ Research complete",
-                "draft_node":      "✅ Draft created",
-                "critique_node":   "✅ Critique done",
-                "rewrite_node":    "🔄 Rewriting…",
-                "validation_node": "✅ Validated",
-                "save_node":       "✅ Saved",
-            }
-            log(node_labels.get(node_name, f"→ {node_name}"))
+            if node_name == "rewrite_node":
+                rewrite_round += 1
 
-            step_idx = min(step_idx + 1, len(steps) - 1)
-            progress.progress(
-                int((step_idx / len(steps)) * 100),
-                text=steps[step_idx]
-            )
+            pct, label = node_progress.get(node_name, (last_pct, f"→ {node_name}"))
+            # Never let the bar move backwards when the rewrite loop repeats
+            last_pct = max(last_pct, pct)
+            if node_name == "rewrite_node" and rewrite_round > 1:
+                label = f"🔄 Rewriting… (round {rewrite_round})"
+            log(label)
+            progress.progress(last_pct, text=label)
 
             # Capture final values
             if state.get("topic"):
@@ -214,6 +237,7 @@ def publish():
 
     try:
         from app.automation.linkedin_publisher import publish_to_linkedin
+
         content = st.session_state.edited_post or st.session_state.generated_post
         publish_to_linkedin(content)
         st.session_state.stage = "published"
@@ -238,24 +262,28 @@ if stage == "idle":
     col1, col2 = st.columns([2, 1])
     with col1:
         st.markdown("#### How it works")
-        st.markdown("""
+        st.markdown(
+            """
 1. **Topic** – AI picks a trending topic  
 2. **Research** – Gathers context  
 3. **Draft** – Writes the post  
 4. **Critique** – Scores & gives feedback  
 5. **Rewrite loop** – Improves until score ≥ 8  
 6. **You review** – Edit, approve, publish
-        """)
+        """
+        )
     with col2:
         st.markdown("&nbsp;")
         # 1. NEW: Static placeholder buffer created directly above the action button
-        
+
         if st.button("🚀 Generate Post", use_container_width=True, type="primary"):
             key_error_placeholder = st.empty()
             if not groq_key:
-                key_error_placeholder.error("⚠️ Please enter your Groq API Key in the sidebar first.")
-                time.sleep(2) # Leave visible for 2 seconds
-                key_error_placeholder.empty() # Clear out container
+                key_error_placeholder.error(
+                    "⚠️ Please enter your Groq API Key in the sidebar first."
+                )
+                time.sleep(2)  # Leave visible for 2 seconds
+                key_error_placeholder.empty()  # Clear out container
             else:
                 run_workflow()
                 st.rerun()
@@ -263,8 +291,12 @@ if stage == "idle":
 # ── RUNNING ────────────────────────────────────────────────────────────────────
 elif stage == "running":
     st.info("Agent is working… please wait.")
-    run_workflow()
-    st.rerun()
+    # The workflow is already running via the button click handler
+    # Just show a spinner or progress indicator
+    with st.spinner("Workflow is running..."):
+        pass
+    # Note: In a real implementation, you might want to check if workflow completed
+    # For now, we rely on the workflow completion to change stage to "review"
 
 # ── REVIEW ─────────────────────────────────────────────────────────────────────
 elif stage == "review":
@@ -276,12 +308,15 @@ elif stage == "review":
         score = st.session_state.score
         label = f"{score:.1f} / 10" if score is not None else "—"
         css = score_class(score)
-        st.markdown(f'<span class="score-badge {css}">⭐ {label}</span>',
-                    unsafe_allow_html=True)
+        st.markdown(
+            f'<span class="score-badge {css}">⭐ {label}</span>', unsafe_allow_html=True
+        )
     with col_c:
         iters = st.session_state.iteration_count
-        st.markdown(f'<span class="status-pill">🔄 {iters} rewrite(s)</span>',
-                    unsafe_allow_html=True)
+        st.markdown(
+            f'<span class="status-pill">🔄 {iters} rewrite(s)</span>',
+            unsafe_allow_html=True,
+        )
 
     st.markdown("---")
 
@@ -350,9 +385,11 @@ elif stage == "review":
     with col_publish:
         if st.button("🚀 Publish to LinkedIn", use_container_width=True):
             approve_error_placeholder = st.empty()
-            approve_error_placeholder.warning("⚠️ Please **Approve** the content before publishing.")
-            time.sleep(2) # Keep visible for 2 seconds
-            approve_error_placeholder.empty() # Automatically wipe out text element
+            approve_error_placeholder.warning(
+                "⚠️ Please **Approve** the content before publishing."
+            )
+            time.sleep(2)  # Keep visible for 2 seconds
+            approve_error_placeholder.empty()  # Automatically wipe out text element
 
     with col_restart:
         if st.button("🔁 Start over", use_container_width=True):
@@ -387,7 +424,9 @@ elif stage == "approved":
     st.markdown("---")
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("🚀 Publish to LinkedIn", use_container_width=True, type="primary"):
+        if st.button(
+            "🚀 Publish to LinkedIn", use_container_width=True, type="primary"
+        ):
             with st.spinner("Publishing to LinkedIn…"):
                 publish()
             st.rerun()

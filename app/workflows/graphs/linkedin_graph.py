@@ -15,6 +15,10 @@ from app.workflows.nodes.format_check_node import format_check_node
 
 graph = StateGraph(LinkedInPostState)
 
+# Each rewrite round costs 3 LLM calls (rewrite + critique + validation pass).
+# Scores plateau after two rounds, so two is the cap.
+MAX_REWRITES = 2
+
 # ── Nodes ──────────────────────────────────────────────────────────────────────
 graph.add_node("topic_node",      topic_node)
 graph.add_node("research_node",   research_node)
@@ -51,7 +55,7 @@ def route_after_critique(state: LinkedInPostState):
     if score >= 8:
         return "validation_node"
 
-    if iteration_count >= 3:
+    if iteration_count >= MAX_REWRITES:
         state["status"] = "max_iterations_reached"
         return "validation_node"
 
@@ -77,7 +81,7 @@ def route_after_validation(state: LinkedInPostState):
 
     iteration_count = int(state.get("iteration_count") or 0)
 
-    if not state.get("is_valid", True) and iteration_count < 3:
+    if not state.get("is_valid", True) and iteration_count < MAX_REWRITES:
         state["critique"] = (
             (state.get("critique") or "") +
             "\nAdditionally, fix these validation issues: " +

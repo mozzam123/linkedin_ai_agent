@@ -11,6 +11,8 @@ class LinkedInPostState(TypedDict):
     score: Optional[float]
     critique_scores: Optional[dict]
     final_post: Optional[str]
+    best_post: Optional[str]           # highest-scoring version seen so far
+    best_score: Optional[float]
     status: Optional[str]
     errors: List[str]
     validation_errors: List[str]

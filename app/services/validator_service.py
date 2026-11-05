@@ -29,8 +29,11 @@ def validate_linkedin_content(text: str, topic: str = ""):
     # Basic regex to count broad ranges of unicode emojis
     emoji_pattern = re.compile(r"[\U00010000-\U0010ffff]", flags=re.UNICODE)
     emojis = emoji_pattern.findall(text)
-    if len(emojis) > 10:
-        advisories.append(f"High emoji density detected ({len(emojis)} emojis). May appear unprofessional.")
+    if len(emojis) > 2:
+        advisories.append(
+            f"Emoji check: found {len(emojis)} emojis. One or two as line markers is fine; "
+            "more reads as marketing."
+        )
 
     # 4. Formatting & Scannability Validation
     paragraphs = [p for p in text.split('\n') if p.strip()]

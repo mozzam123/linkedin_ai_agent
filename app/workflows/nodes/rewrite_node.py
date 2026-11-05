@@ -9,7 +9,7 @@ def rewrite_node(state: LinkedInPostState):
         state["errors"] = []
 
     try:
-        llm       = get_llm()
+        llm       = get_llm(temperature=0.7, max_tokens=1500, reasoning_effort="low")
         post_goal = state.get("post_goal") or "IMPRESSIONS"
 
         # Generate targeted advice based on critique scores
@@ -26,8 +26,16 @@ def rewrite_node(state: LinkedInPostState):
             if specificity < 6:
                 advice_lines.append(f"- Specificity score: {specificity}/10 — Add a concrete detail like a number, timeline, or specific system name.")
             human_feel = critique_scores.get("human_feel", 5.0)
-            if human_feel < 6:
-                advice_lines.append(f"- Human feel score: {human_feel}/10 — Make the post more conversational and relatable; avoid sounding overly formal or theoretical.")
+            if human_feel < 8:
+                advice_lines.append(
+                    f"- Human feel score: {human_feel}/10 — this is the weakest signal. "
+                    "Fix it concretely, not with adjectives: break the even sentence rhythm "
+                    "(put a 3-word line beside a long one), swap one tidy bullet or summary "
+                    "line for a raw artifact (exact error string, log line, one line of code, "
+                    "a non-round number like 27.4%), add one first-person admission "
+                    "(\"I still don't know why\"), use contractions, and delete the closing "
+                    "moral so the post just stops."
+                )
             goal_alignment = critique_scores.get("goal_alignment", 5.0)
             if goal_alignment < 6:
                 advice_lines.append(f"- Goal alignment score: {goal_alignment}/10 — Ensure the post structure matches the selected goal ({post_goal}).")
@@ -46,9 +54,16 @@ def rewrite_node(state: LinkedInPostState):
         )
 
         response = llm.invoke(prompt)
+        rewritten = (getattr(response, "content", "") or "").strip()
 
-        state["generated_post"]  = response.content
-        state["final_post"]      = response.content  # Always keep final_post in sync
+        # Never overwrite a good draft with an empty response
+        if rewritten:
+            state["generated_post"] = rewritten
+            state["final_post"]     = rewritten  # Keep final_post in sync
+        else:
+            state["errors"].append(
+                "rewrite_node: model returned an empty rewrite; keeping previous draft."
+            )
         state["iteration_count"] += 1
 
     except Exception as e:

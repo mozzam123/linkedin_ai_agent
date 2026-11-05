@@ -85,10 +85,10 @@ def topic_node(state: LinkedInPostState):
             recent_topics=recent_topics,
         )
  
-        llm      = get_llm(temperature=0.95)
+        llm      = get_llm(temperature=0.95, max_tokens=250, reasoning_effort="low")
         response = llm.invoke(prompt)
- 
-        topic, goal = _parse_topic_response(response.content)
+
+        topic, goal = _parse_topic_response(response.content or "")
  
         state["topic"]     = topic
         state["post_goal"] = goal

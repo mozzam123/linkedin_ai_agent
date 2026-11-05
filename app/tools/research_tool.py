@@ -4,7 +4,7 @@ from app.services.llm_service import get_llm
 
 
 def research_topic(topic: str) -> str:
-    llm = get_llm(temperature=0.4)
+    llm = get_llm(temperature=0.4, max_tokens=800, reasoning_effort="low")
 
     prompt = f"""You are preparing research notes for a LinkedIn post by a technical AI engineer.
 

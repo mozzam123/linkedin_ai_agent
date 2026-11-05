@@ -30,7 +30,7 @@ Topic → Research → Draft → Critique → (Rewrite loop) → Validation → 
 | Web Framework | FastAPI + Uvicorn |
 | Agent Orchestration | LangGraph |
 | LLM Framework | LangChain (`langchain-groq`) |
-| LLM Provider | Groq |
+| LLM Provider | Groq (`qwen/qwen3.8-27b` by default) |
 | Database | SQLite (via SQLAlchemy ORM) |
 | Data Validation | Pydantic |
 | Browser Automation | Playwright |
@@ -82,7 +82,7 @@ Create a `.env` file in the project root:
 
 ```env
 GROQ_API_KEY=your_groq_api_key
-GROQ_MODEL=llama-3.3-70b-versatile
+GROQ_MODEL=qwen/qwen3.8-27b
 ```
 
 ### Running the API

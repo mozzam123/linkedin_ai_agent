@@ -8,12 +8,16 @@ def save_workflow_run(state):
 
     db = SessionLocal()
 
-    run = WorkflowRun(
-        topic=state["topic"],
-        status=state.get("status", "unknown"),
-        final_score=state.get("score"),
-    )
+    try:
+        run = WorkflowRun(
+            topic=state.get("topic"),
+            status=state.get("status", "unknown"),
+            final_score=state.get("score"),
+        )
 
-    db.add(run)
-    db.commit()
-    db.close()
+        db.add(run)
+        db.commit()
+
+        return run
+    finally:
+        db.close()

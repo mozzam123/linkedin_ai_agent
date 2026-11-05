@@ -59,6 +59,10 @@ Format rules (non-negotiable):
 - Blank line after every sentence, always
 - 150-300 words total
 - No headers, no bold, no hashtags in the body
+- Emojis: optional, and rare. Use at most ONE, and only when it marks a real
+  pointer line (✅ ❌ ⚠️ 📉 📈). Never in the first line, never in the last
+  line. No decorative emojis (🚀 🔥 💡 🙌 🎯). Most posts should have none —
+  if the post has no list, it needs no emoji.
 - Pointers only when content genuinely calls for it:
   • Bullets: 3-5 parallel items, max 8 words each
   → Arrows: cause-effect chain only, max 3 in a row
@@ -71,6 +75,11 @@ Ending rules by goal:
 
 Content rules:
 - One idea only
+- Vary line length: put a 3-4 word line next to a long one. Even rhythm reads AI.
+- Include one raw artifact: an exact error string, log line, or a non-round number (27.4%)
+- Include one admission or aside in first person ("I still don't know why")
+- Use contractions; write it like you'd say it to a colleague
+- No closing moral. Stop where the thought stops
 - No buzzwords (leverage, unlock, transform, seamless, robust, game-changer)
 - No filler phrases ("In today's world", "It's no secret that")
 - No summarizing at the end

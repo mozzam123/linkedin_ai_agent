@@ -9,7 +9,8 @@ def validation_node(state: LinkedInPostState) -> LinkedInPostState:
     state["is_valid"] = True
 
     try:
-        post_content = state.get("generated_post", "")
+        # Validate the best version we have, which is what will be saved
+        post_content = state.get("best_post") or state.get("generated_post", "")
         topic = state.get("topic", "")
 
         if not post_content:
@@ -17,10 +18,10 @@ def validation_node(state: LinkedInPostState) -> LinkedInPostState:
             state["is_valid"] = False
             return state
 
-        # Run checks
-        is_valid, warnings = validate_linkedin_content(post_content, topic=topic)
-        
-        state["validation_errors"] = warnings
+        # Run checks — validate_linkedin_content returns (is_valid, errors, advisories)
+        is_valid, errors, advisories = validate_linkedin_content(post_content, topic=topic)
+
+        state["validation_errors"] = list(errors) + list(advisories)
         state["is_valid"] = is_valid
         
         # If the content failed critical validation thresholds, adjust status

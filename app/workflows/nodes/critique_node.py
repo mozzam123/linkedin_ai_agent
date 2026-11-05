@@ -4,6 +4,19 @@ from app.services.llm_service import get_llm
 from app.prompts.critique_prompts import CRITIQUE_PROMPT
 
 
+def _to_score(value, fallback: float = 5.0) -> float:
+    """Models sometimes answer with words ("High") or strings ("7"). Normalise."""
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        cleaned = value.strip().replace("/10", "").replace("%", "")
+        try:
+            return float(cleaned)
+        except ValueError:
+            return fallback
+    return fallback
+
+
 def _parse_critique(raw: str) -> dict:
     """
     Parse critique JSON from LLM response.
@@ -57,43 +70,47 @@ def critique_node(state: LinkedInPostState):
     state["score"] = float(state.get("score") or 0.0)
 
     try:
-        llm       = get_llm(temperature=0.2)
-        post      = state.get("generated_post") or ""
+        llm = get_llm(temperature=0.2, max_tokens=700, reasoning_effort="low")
+        post = state.get("generated_post") or ""
         post_goal = state.get("post_goal") or "IMPRESSIONS"
 
-        if not post:
+        if not post.strip():
             raise ValueError("generated_post is empty — draft_node may have failed")
 
-        prompt   = CRITIQUE_PROMPT.format(post=post, post_goal=post_goal)
+        prompt = CRITIQUE_PROMPT.format(post=post, post_goal=post_goal)
         response = llm.invoke(prompt)
 
-        parsed  = _parse_critique(response.content)
-        overall = parsed.get("overall_score", 5.0)
+        parsed = _parse_critique(response.content or "")
+        overall = _to_score(parsed.get("overall_score"), 5.0)
 
-        state["score"] = float(overall) if overall is not None else 5.0
+        state["score"] = overall
+        subscores = {
+            key: _to_score(parsed.get(key), 5.0)
+            for key in ("hook", "entry_point", "specificity", "human_feel",
+                        "goal_alignment", "dwell_time")
+        }
         state["critique"] = (
             f"PRIORITY FIX: {parsed.get('priority_fix', '')}\n\n"
-            f"Hook: {parsed.get('hook')}/10 | "
-            f"Entry: {parsed.get('entry_point')}/10 | "
-            f"Specificity: {parsed.get('specificity')}/10 | "
-            f"Human Feel: {parsed.get('human_feel')}/10 | "
-            f"Goal Alignment: {parsed.get('goal_alignment')}/10 | "
-            f"Dwell Time: {parsed.get('dwell_time')}/10"
+            f"Hook: {subscores['hook']}/10 | "
+            f"Entry: {subscores['entry_point']}/10 | "
+            f"Specificity: {subscores['specificity']}/10 | "
+            f"Human Feel: {subscores['human_feel']}/10 | "
+            f"Goal Alignment: {subscores['goal_alignment']}/10 | "
+            f"Dwell Time: {subscores['dwell_time']}/10"
         )
         # Store sub-scores for targeted rewrites
-        state["critique_scores"] = {
-            "hook": parsed.get("hook"),
-            "entry_point": parsed.get("entry_point"),
-            "specificity": parsed.get("specificity"),
-            "human_feel": parsed.get("human_feel"),
-            "goal_alignment": parsed.get("goal_alignment"),
-            "dwell_time": parsed.get("dwell_time"),
-        }
+        state["critique_scores"] = subscores
+
+        # Keep the highest-scoring version so a rewrite can never degrade the post
+        best_score = state.get("best_score")
+        if best_score is None or overall > float(best_score):
+            state["best_score"] = overall
+            state["best_post"]  = post
 
     except Exception as e:
         state["errors"].append(f"Error in critique_node: {str(e)}")
         state["status"] = "failed"
-        state["score"]  = float(state.get("score") or 0.0)
+        state["score"] = float(state.get("score") or 0.0)
         # Provide default scores on error
         state["critique_scores"] = {
             "hook": 5.0,
