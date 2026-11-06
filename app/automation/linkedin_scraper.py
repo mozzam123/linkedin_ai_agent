@@ -1,3 +1,4 @@
+import hashlib
 import random
 import time
 
@@ -111,6 +112,36 @@ def _extract_post_url(container, page) -> str | None:
     return None
 
 
+def _is_suggestion_card(post_text: str, author_name: str) -> bool:
+    """
+    The feed mixes 'people you may know' units in with real posts. They have
+    no author and a canned sentence, so they are not commentable.
+    """
+    if not (author_name or "").strip():
+        return True
+    text = (post_text or "").lower()
+    markers = (
+        "people you may know",
+        "people skilled in",
+        "also follow these people",
+        "add these people you may know",
+        "suggested for you",
+    )
+    return any(marker in text for marker in markers)
+
+
+def _synthetic_post_key(author_url: str, post_text: str) -> str:
+    """
+    Stable identity for a post when LinkedIn exposes no permalink.
+
+    The 2026 feed renders no /feed/update/ link anywhere in the card, so the
+    same post must be recognisable across runs by its author + content.
+    """
+    normalized = " ".join((post_text or "").split()).lower()
+    digest = hashlib.sha1(f"{author_url or ''}|{normalized}".encode("utf-8")).hexdigest()[:24]
+    return f"urn:li:feed-post:{digest}"
+
+
 def _is_job_update(container, page) -> bool:
     try:
         links = container.locator(SELECTORS["timestamp_links"]).all()
@@ -168,41 +199,51 @@ def _extract_author_url(container) -> str:
 
 
 def _extract_post_text(container) -> str:
+    """
+    Extract the post body.
+
+    The card also contains the author's headline (job title / bio), which is
+    often longer than a short post, so "longest <p>" alone returns headlines
+    like "Principal @ X | PhD in Education". Headlines on LinkedIn use " | "
+    as a separator, so those are rejected, along with anything too short.
+    """
     try:
-        spans = container.locator(SELECTORS["post_text_primary"]).all()
-        if spans:
-            texts = [(s.inner_text() or "").strip() for s in spans]
-            texts = [t for t in texts if t]
-            if texts:
-                return " ".join(max(texts, key=len).split())
+        text = container.evaluate(
+            """el => {
+                const clean = t => t.replace(/\\s+/g, ' ').trim();
+                let best = '';
+                el.querySelectorAll('p').forEach(p => {
+                    const t = clean(p.innerText || '');
+                    if (t.length < 60) return;
+                    if (t.includes(' | ')) return;                 // author headline
+                    if (t.toLowerCase().startsWith('feed post')) return;
+                    if (t.length > best.length) best = t;
+                });
+                return best;
+            }"""
+        )
+        return (text or "").strip()
     except Exception:
-        pass
-    try:
-        paras = container.locator(SELECTORS["post_text_fallback"]).all()
-        if paras:
-            texts = [
-                (p.inner_text() or "").strip()
-                for p in paras
-                if len((p.inner_text() or "").strip()) > 20
-            ]
-            if texts:
-                return " ".join(max(texts, key=len).split())
-    except Exception:
-        pass
-    return ""
+        return ""
 
 
 def _word_count(text: str) -> int:
     return len(text.split())
 
 
-def scrape_linkedin_feed(max_posts: int = None) -> list[dict]:
+def scrape_linkedin_feed(max_posts: int = None, headless: bool = None) -> list[dict]:
     """
     Scrape LinkedIn feed. Scrolls the #workspace container directly
     since LinkedIn's feed does not scroll via window.scrollBy.
+
+    headless: override settings.SCRAPER_HEADLESS (useful for scheduled runs
+    and for tests on machines without a desktop session).
     """
     if max_posts is None:
         max_posts = settings.MAX_POSTS_TO_SCRAPE_PER_RUN
+
+    if headless is None:
+        headless = settings.SCRAPER_HEADLESS
 
     collected: list[dict] = []
     seen_urls: set[str]   = set()
@@ -210,7 +251,7 @@ def scrape_linkedin_feed(max_posts: int = None) -> list[dict]:
     with sync_playwright() as p:
         browser = p.chromium.launch_persistent_context(
             user_data_dir=settings.PLAYWRIGHT_SESSION_DIR,
-            headless=False,
+            headless=headless,
         )
         page = browser.new_page()
 
@@ -243,9 +284,10 @@ def scrape_linkedin_feed(max_posts: int = None) -> list[dict]:
                     if _is_job_update(container, page):
                         continue
 
+                    # The 2026 feed no longer exposes post permalinks at all
+                    # (no /feed/update/ links, even on hover), so fall back to
+                    # a stable content key for dedupe and lookups.
                     post_url = _extract_post_url(container, page)
-                    if not post_url or post_url in seen_urls:
-                        continue
 
                     post_text = _extract_post_text(container)
                     if _word_count(post_text) < settings.MIN_POST_WORD_COUNT:
@@ -253,6 +295,15 @@ def scrape_linkedin_feed(max_posts: int = None) -> list[dict]:
 
                     author_name = _extract_author_name(container)
                     author_url  = _extract_author_url(container)
+
+                    if _is_suggestion_card(post_text, author_name):
+                        continue
+
+                    if not post_url:
+                        post_url = _synthetic_post_key(author_url, post_text)
+
+                    if post_url in seen_urls:
+                        continue
 
                     seen_urls.add(post_url)
                     collected.append({

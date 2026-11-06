@@ -75,6 +75,21 @@ with st.sidebar:
         "Workflow: Topic → Research → Draft → Critique → (Rewrite loop) → Review → Publish"
     )
 
+    st.markdown("---")
+    mode = st.radio(
+        "What do you want to do?",
+        ["✍️ Create post", "💬 Comment queue"],
+        help="Comment queue drafts replies to posts in your feed. It never posts automatically.",
+    )
+
+
+# ─── Comment queue mode ────────────────────────────────────────────────────────
+if mode == "💬 Comment queue":
+    from app.ui.comment_queue import render_comment_queue
+
+    render_comment_queue()
+    st.stop()
+
 
 # ─── Session state defaults ────────────────────────────────────────────────────
 defaults = {

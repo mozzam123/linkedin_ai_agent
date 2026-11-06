@@ -13,6 +13,12 @@ class Settings:
     # Single-account setup: one fixed session folder, no multi-account support
     PLAYWRIGHT_SESSION_DIR = "./playwright_user_data"
 
+    # Headful is the default for scraping (less bot-like, and you can see it
+    # working). Set SCRAPER_HEADLESS=true for scheduled/unattended runs.
+    SCRAPER_HEADLESS = os.getenv("SCRAPER_HEADLESS", "false").strip().lower() in (
+        "1", "true", "yes", "on",
+    )
+
     # ── Rate limiting ──────────────────────────────────────────────────────
     MAX_COMMENTS_PER_DAY             = 5    # hard ceiling, never exceed
     MIN_HOURS_BETWEEN_COMMENTS       = 2    # minimum gap between any two posted comments

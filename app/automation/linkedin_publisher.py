@@ -1,134 +1,57 @@
 import os
 
-from playwright.sync_api import sync_playwright
+import app.automation.actions as actions
+from app.automation.actions import (
+    ActionError,
+    browser_session,
+    click_or_skip,
+    composer_submit_button,
+    ensure_logged_in,
+    goto,
+    open_composer,
+    type_text,
+    wait_until_enabled,
+)
+from app.core.config import settings  # noqa: F401  (kept for backwards-compatible imports)
 
-from app.core.config import settings
 
-# LinkedIn's composer is a Quill-style contenteditable. The visible textbox has
-# role="textbox"; other contenteditables can exist elsewhere on the page.
+def publish_to_linkedin(post_content: str, dry_run: bool | None = None) -> bool:
+    """
+    Publish `post_content` to LinkedIn.
 
+    Returns True when the post was submitted, False in dry-run mode.
+    Raises ActionError with the exact failing step on failure.
+    """
+    if dry_run is None:
+        dry_run = actions.is_dry_run()
 
-def _first_visible(locator):
-    """Return the first visible element in a locator group, or None."""
-    for index in range(locator.count()):
-        element = locator.nth(index)
+    with browser_session(headless=True) as page:
         try:
-            if element.is_visible():
-                return element
-        except Exception:
-            continue
-    return None
+            goto(page, actions.FEED_URL)
+            ensure_logged_in(page)
 
-
-def _first_visible_editor(page):
-    """
-    The composer is a plain contenteditable with role="textbox". It is NOT
-    always wrapped in div[role='dialog'] any more, so search the page.
-    """
-    return (
-        _first_visible(page.locator("[contenteditable='true'][role='textbox']"))
-        or _first_visible(page.locator("[contenteditable='true']"))
-    )
-
-
-def _type_post(page, editor, content: str) -> bool:
-    """
-    Type into the composer and confirm the text actually landed.
-
-    press_sequentially() alone proved unreliable: LinkedIn re-renders the
-    composer (e.g. the "Collaborative Posts" banner) and focus is lost, so
-    every keystroke goes nowhere and the Post button stays disabled.
-    keyboard.insert_text() sends one input event, which the editor accepts.
-    """
-    editor.click()
-    page.wait_for_timeout(700)
-
-    page.keyboard.insert_text(content)
-    page.wait_for_timeout(1500)
-    if editor.inner_text().strip():
-        return True
-
-    # Fallback: focus again and type character by character
-    editor.click()
-    page.wait_for_timeout(400)
-    editor.press_sequentially(content, delay=10)
-    page.wait_for_timeout(1500)
-    return bool(editor.inner_text().strip())
-
-
-def publish_to_linkedin(post_content: str):
-    with sync_playwright() as p:
-        browser = p.chromium.launch_persistent_context(
-            user_data_dir=settings.PLAYWRIGHT_SESSION_DIR,
-            headless=True,
-        )
-        page = browser.new_page()
-
-        try:
-            page.goto("https://www.linkedin.com/feed/", timeout=45_000)
-
-            # Session check — a dead session shows a login wall instead of the feed
-            if any(k in page.url.lower() for k in ("login", "authwall", "checkpoint")):
-                raise RuntimeError(
-                    "LinkedIn session is not valid. Run `python login_linkedin.py` to log in again."
-                )
-
-            # 1. Open the composer
-            start_post_btn = page.get_by_text("Start a post")
-            try:
-                start_post_btn.wait_for(state="visible", timeout=15_000)
-                start_post_btn.click()
-            except Exception:
-                page.locator(
-                    "button:has-text('post'), .share-box-feed-entry__trigger"
-                ).first.wait_for(state="visible", timeout=10_000)
-                page.locator(
-                    "button:has-text('post'), .share-box-feed-entry__trigger"
-                ).first.click()
-
-            # 2. Wait for the composer to appear and find the editor
-            editor = None
-            for _ in range(20):  # up to ~10s
-                editor = _first_visible_editor(page)
-                if editor is not None:
-                    break
-                page.wait_for_timeout(500)
-            if editor is None:
-                raise RuntimeError("Could not find the post editor — the composer did not open.")
-            page.wait_for_timeout(600)
-
-            # 3. Put the text in it
-            if not _type_post(page, editor, post_content):
-                raise RuntimeError(
+            editor = open_composer(page)
+            if not type_text(page, editor, post_content):
+                raise ActionError(
                     "Text did not land in the post editor — LinkedIn kept the Post button disabled."
                 )
 
-            # 4. Wait for the Post button to become enabled, then click it
-            post_button = _first_visible(page.get_by_role("button", name="Post", exact=True))
-            if post_button is None:
-                post_button = _first_visible(
-                    page.locator("button.share-actions__post-button:visible")
-                )
-            if post_button is None:
-                raise RuntimeError("Could not find the Post button in the composer.")
+            button = composer_submit_button(page)
+            if not wait_until_enabled(button, page):
+                raise ActionError("Post button stayed disabled after typing the content.")
 
-            for _ in range(20):  # up to ~10s for the composer to validate the text
-                if post_button.is_enabled():
-                    break
-                page.wait_for_timeout(500)
-            if not post_button.is_enabled():
-                raise RuntimeError("Post button stayed disabled after typing the content.")
+            if not click_or_skip(page, button, "Post", dry_run):
+                print("Dry run: post was NOT submitted.")
+                return False
 
-            post_button.click()
-
-            # 5. Confirm it went out
             try:
-                page.locator(
-                    ".artdeco-toast-item, [role='alert']"
-                ).get_by_text("successful", exact=False).wait_for(state="visible", timeout=15_000)
+                page.locator(".artdeco-toast-item, [role='alert']").get_by_text(
+                    "successful", exact=False
+                ).wait_for(state="visible", timeout=15_000)
                 print("Post Published successfully!")
             except Exception:
                 print("Post action triggered, but confirmation banner structure wasn't caught.")
+            return True
 
         except Exception as e:
             os.makedirs("error_logs", exist_ok=True)
@@ -140,6 +63,3 @@ def publish_to_linkedin(post_content: str):
             print(f"Publishing failed: {e}")
             print(f"Diagnostic image saved to {screenshot_path}")
             raise
-
-        finally:
-            browser.close()
