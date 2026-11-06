@@ -1,6 +1,8 @@
 import hashlib
 import random
+import re
 import time
+from functools import lru_cache
 
 from playwright.sync_api import sync_playwright
 from app.core.config import settings
@@ -114,20 +116,39 @@ def _extract_post_url(container, page) -> str | None:
 
 def _is_suggestion_card(post_text: str, author_name: str) -> bool:
     """
-    The feed mixes 'people you may know' units in with real posts. They have
-    no author and a canned sentence, so they are not commentable.
+    The feed mixes 'people you may know' / 'because you recently followed'
+    units in with real posts. They have no post body and are not commentable.
     """
     if not (author_name or "").strip():
         return True
     text = (post_text or "").lower()
     markers = (
         "people you may know",
+        "because you recently followed",
         "people skilled in",
         "also follow these people",
         "add these people you may know",
         "suggested for you",
     )
     return any(marker in text for marker in markers)
+
+
+@lru_cache(maxsize=1)
+def _niche_pattern():
+    keywords = sorted({k.lower() for k in settings.NICHE_KEYWORDS}, key=len, reverse=True)
+    return re.compile(r"\b(" + "|".join(re.escape(k) for k in keywords) + r")\b", re.IGNORECASE)
+
+
+def _has_niche_keyword(text: str) -> bool:
+    """
+    Cheap pre-filter so off-topic posts never reach the LLM scorer.
+
+    Without it, an 8-post scan burns scoring calls and DB rows on HR posts,
+    internship ads and stock-market commentary.
+    """
+    if not settings.SCRAPER_KEYWORD_PREFILTER:
+        return True
+    return bool(_niche_pattern().search(text or ""))
 
 
 def _synthetic_post_key(author_url: str, post_text: str) -> str:
@@ -162,25 +183,35 @@ def _is_job_update(container, page) -> bool:
     return False
 
 
+def _clean_person_name(raw: str) -> str:
+    """Turn 'View Harrison Chase’s profile' / 'Name • 3rd+' into 'Harrison Chase'."""
+    name = (raw or "").split("\n")[0].strip()
+    name = name.split("•")[0].strip()
+    for prefix in ("View ", "view "):
+        if name.startswith(prefix):
+            name = name[len(prefix):]
+    for suffix in ("'s profile", "’s profile", "'s Profile", "’s Profile"):
+        if name.endswith(suffix):
+            name = name[: -len(suffix)]
+    return name.strip()
+
+
 def _extract_author_name(container) -> str:
+    # Prefer the visible name text; aria-labels are often "View X's profile"
     try:
-        links = container.locator(SELECTORS["author_link"]).all()
-        for link in links:
-            aria = (link.get_attribute("aria-label") or "").strip()
-            if aria:
-                return aria.split(",")[0].strip()
-            text = (link.inner_text() or "").strip().split("\n")[0].strip()
-            if text and len(text) < 80:
+        for link in container.locator(SELECTORS["author_link"]).all():
+            text = _clean_person_name(link.inner_text())
+            if text and len(text) < 60:
+                return text
+            text = _clean_person_name(link.get_attribute("aria-label") or "")
+            if text and len(text) < 60:
                 return text
     except Exception:
         pass
     try:
-        aria = container.get_attribute("aria-label") or ""
-        if aria:
-            return aria.split(",")[0].strip()
+        return _clean_person_name(container.get_attribute("aria-label") or "")
     except Exception:
-        pass
-    return ""
+        return ""
 
 
 def _extract_author_url(container) -> str:
@@ -200,23 +231,40 @@ def _extract_author_url(container) -> str:
 
 def _extract_post_text(container) -> str:
     """
-    Extract the post body.
+    Extract the post body, never the author's headline.
 
-    The card also contains the author's headline (job title / bio), which is
-    often longer than a short post, so "longest <p>" alone returns headlines
-    like "Principal @ X | PhD in Education". Headlines on LinkedIn use " | "
-    as a separator, so those are rejected, along with anything too short.
+    A card contains the author name, the author's headline (job title / bio)
+    and the post itself, all as <p> elements. The headline is often longer
+    than a short post, so length alone picks the wrong one.
+
+    The fix is positional: everything in the first ~220 characters of the card
+    is header (name, headline, timestamp). Any <p> whose text appears there is
+    the headline, not the body. Suggestion cards ("Because you recently
+    followed X") are rejected too — they are not posts at all.
     """
     try:
         text = container.evaluate(
             """el => {
                 const clean = t => t.replace(/\\s+/g, ' ').trim();
+                const cardText = clean(el.innerText || '');
+                const header = cardText.slice(0, 220).toLowerCase();
+                const NOT_A_POST = [
+                    'people you may know',
+                    'because you recently followed',
+                    'people skilled in',
+                    'also follow these people',
+                    'suggested for you',
+                ];
                 let best = '';
                 el.querySelectorAll('p').forEach(p => {
                     const t = clean(p.innerText || '');
+                    const low = t.toLowerCase();
                     if (t.length < 60) return;
-                    if (t.includes(' | ')) return;                 // author headline
-                    if (t.toLowerCase().startsWith('feed post')) return;
+                    if (header.includes(low)) return;              // author headline
+                    if (t.includes(' | ')) return;                 // headline separator
+                    if (low.startsWith('feed post')) return;
+                    if (NOT_A_POST.some(m => low.includes(m))) return;
+                    if (t.split(' ').length < 12) return;          // too short to be a body
                     if (t.length > best.length) best = t;
                 });
                 return best;
@@ -297,6 +345,9 @@ def scrape_linkedin_feed(max_posts: int = None, headless: bool = None) -> list[d
                     author_url  = _extract_author_url(container)
 
                     if _is_suggestion_card(post_text, author_name):
+                        continue
+
+                    if not _has_niche_keyword(post_text):
                         continue
 
                     if not post_url:

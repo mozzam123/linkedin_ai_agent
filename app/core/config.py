@@ -29,6 +29,26 @@ class Settings:
     MAX_COMMENT_GENERATION_ATTEMPTS  = 3    # rewrite loop limit per post
     MAX_POSTS_TO_SCRAPE_PER_RUN      = 20   # feed posts to collect per scheduler run
     MAX_COMMENTS_TO_POST_PER_RUN     = 3    # approved comments to post per scheduler run
+
+    # ── Discovery pre-filter ───────────────────────────────────────────────
+    # Posts containing none of these words are dropped before any LLM call,
+    # so the scorer never spends a token on HR posts or internship ads.
+    SCRAPER_KEYWORD_PREFILTER = os.getenv("SCRAPER_KEYWORD_PREFILTER", "true").strip().lower() in (
+        "1", "true", "yes", "on",
+    )
+    NICHE_KEYWORDS = (
+        "ai", "llm", "llms", "agent", "agents", "agentic", "rag", "mlops",
+        "llmops", "model", "models", "prompt", "prompts", "prompting",
+        "embedding", "embeddings", "vector", "vectors", "retrieval",
+        "fine-tuning", "finetune", "transformer", "transformers", "gpt",
+        "claude", "gemini", "openai", "anthropic", "langchain", "langgraph",
+        "fastapi", "python", "inference", "token", "tokens", "eval", "evals",
+        "evaluation", "hallucination", "hallucinations", "chatbot", "neural",
+        "machine learning", "deep learning", "dataset", "datasets", "api",
+        "api", "apis", "context window", "copilot", "coding agent",
+        "genai", "generative ai", "artificial intelligence", "nlp",
+        "data science", "computer vision",
+    )
     SCHEDULER_INTERVAL_HOURS         = 5    # base interval between discovery runs
     SCHEDULER_JITTER_SECONDS         = 3600 # randomize run time ±1 hour
 
