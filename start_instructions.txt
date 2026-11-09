@@ -1,0 +1,2 @@
+for backend - uvicorn app.main:app --reload
+for frontend - streamlit run streamlit_app.py
