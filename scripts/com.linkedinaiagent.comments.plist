@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.linkedinaiagent.comments</string>
+
+    <!-- Hourly tick; the app itself decides whether it is due (5h + jitter). -->
+    <key>StartInterval</key>
+    <integer>3600</integer>
+    <key>RunAtLoad</key>
+    <false/>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>__POETRY__</string>
+        <string>run</string>
+        <string>python</string>
+        <string>-m</string>
+        <string>app.services.comment_scheduler</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>__PROJECT__</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>SCRAPER_HEADLESS</key>
+        <string>true</string>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>__PROJECT__/logs/comment_scheduler.log</string>
+    <key>StandardErrorPath</key>
+    <string>__PROJECT__/logs/comment_scheduler.err.log</string>
+</dict>
+</plist>

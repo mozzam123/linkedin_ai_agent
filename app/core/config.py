@@ -30,6 +30,10 @@ class Settings:
     MAX_POSTS_TO_SCRAPE_PER_RUN      = 20   # feed posts to collect per scheduler run
     MAX_COMMENTS_TO_POST_PER_RUN     = 3    # approved comments to post per scheduler run
 
+    # Without permalinks an old post can no longer be found in the feed.
+    # Comments older than this are marked expired instead of retried forever.
+    MAX_COMMENT_AGE_HOURS            = 24
+
     # ── Discovery pre-filter ───────────────────────────────────────────────
     # Posts containing none of these words are dropped before any LLM call,
     # so the scorer never spends a token on HR posts or internship ads.

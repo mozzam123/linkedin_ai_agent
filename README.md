@@ -108,6 +108,35 @@ poetry run streamlit run streamlit_app.py
 | POST | `/approve-post/{post_id}` | Approves a reviewed post |
 | POST | `/publish-post/{post_id}` | Publishes an approved post to LinkedIn |
 
+## Comment workflow (draft → approve → post)
+
+The comment side runs separately from post generation, and **never posts on its own**.
+
+1. **Discover** — scans the feed, keeps posts containing a niche keyword, skips
+   "people you may know" units and author headlines.
+2. **Score** — one LLM call per post against `NICHE_TOPICS`.
+3. **Draft** — one comment per post, self-scored; only ≥ `COMMENT_SELF_SCORE_THRESHOLD`
+   reaches the queue as `pending_approval`.
+4. **Approve** — you review/edit in the UI. Approving posts nothing.
+5. **Post** — a separate button posts **one** comment, then a 2h cooldown applies.
+
+### Scheduled scans (macOS)
+
+```bash
+./scripts/install_scheduler.sh          # hourly tick, actual scan every 5h
+./scripts/install_scheduler.sh --uninstall
+poetry run python -m app.services.comment_scheduler --force   # run one now
+```
+
+The job only discovers and drafts — posting stays manual. Caps live in
+`app/core/config.py`: 5/day, 2h gap, 1 per creator per 48h.
+
+### Known limitation
+
+LinkedIn's feed exposes no post permalinks. Comments can only be posted while the
+post is still findable in your feed (roughly same day); older drafts are marked
+`expired` instead of retried forever.
+
 ## Configuration
 
 Key tunables live in `app/core/config.py`, including:

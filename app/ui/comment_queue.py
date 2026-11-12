@@ -7,6 +7,9 @@ posted from this screen.
 
 import streamlit as st
 
+from app.core.config import settings
+from app.services.comment_poster import DAY_CAP, post_approved_comments, posting_status
+from app.services.comment_scheduler import last_run, next_run_at
 from app.services.comment_service import (
     approve_comment,
     pending_comments,
@@ -27,6 +30,16 @@ def render_comment_queue():
         "The agent scans your feed, scores posts for relevance, and drafts a "
         "comment. **Nothing is posted from here** — approving just marks it ready."
     )
+
+    # Scheduled scans (Phase 5) — discovery only, never posts
+    previous = last_run()
+    if previous:
+        upcoming = next_run_at()
+        st.caption(
+            f"⏱️ Last scheduled scan: **{previous.started_at:%d %b %H:%M} UTC** — "
+            f"{previous.posts_scraped} scanned, {previous.comments_accepted} drafted"
+            + (f" · next due {upcoming:%d %b %H:%M} UTC" if upcoming else "")
+        )
 
     st.markdown("---")
 
@@ -57,6 +70,75 @@ def render_comment_queue():
         )
         for error in result.get("errors") or []:
             st.warning(error)
+
+    # ── Posting (Phase 4) ──────────────────────────────────────────────────
+    st.markdown("---")
+    st.subheader("🚀 Post approved comments")
+
+    try:
+        status = posting_status()
+    except Exception as e:
+        status = None
+        st.error(f"Could not read posting status: {e}")
+
+    if status:
+        cooldown = (
+            f"next allowed after {status['next_allowed_at']:%H:%M} UTC"
+            if status["next_allowed_at"] and not status["can_post_now"]
+            else "ready"
+        )
+        st.caption(
+            f"Approved waiting: **{status['approved_waiting']}** · "
+            f"Posted today: **{status['posted_today']}/{status['daily_cap']}** · {cooldown}"
+        )
+
+        if status.get("stale_approved"):
+            st.warning(
+                f"{status['stale_approved']} approved comment(s) belong to posts older than "
+                f"{settings.MAX_COMMENT_AGE_HOURS}h. LinkedIn usually stops showing those posts, so they may not be "
+                "findable — they will be marked expired when you try."
+            )
+
+        dry = st.checkbox(
+            "Dry run — find the post and type the comment, but don't submit",
+            value=False,
+        )
+
+        if st.button(
+            "Post next approved comment",
+            type="primary",
+            disabled=not status["can_post_now"] or status["approved_waiting"] == 0,
+        ):
+            with st.spinner("Opening LinkedIn, locating the post, commenting…"):
+                outcome = post_approved_comments(limit=1, dry_run=dry)
+            if outcome.get("blocked_reason"):
+                st.warning(outcome["blocked_reason"])
+            for item in outcome.get("results") or []:
+                if item.get("ok") and not item.get("dry_run"):
+                    if item.get("confirmed"):
+                        st.success(f"Comment #{item['comment_id']} posted and confirmed on the page.")
+                    else:
+                        st.warning(
+                            f"Comment #{item['comment_id']}: submit was clicked but the comment "
+                            "was not found on the page. Check LinkedIn before trusting it."
+                        )
+                elif item.get("ok"):
+                    st.info(f"Dry run OK for comment #{item['comment_id']} — nothing submitted.")
+                else:
+                    st.error(f"Comment #{item['comment_id']} failed: {item.get('error')}")
+
+            if outcome.get("expired"):
+                st.warning(
+                    f"{outcome['expired']} comment(s) were marked **expired** because the post "
+                    "could no longer be found. Approve drafts and post them the same day."
+                )
+
+        st.caption(
+            "Caps: 1 comment per run · 2h between comments · "
+            f"{DAY_CAP} per day · 1 per creator per 48h. "
+            "⚠️ Post the same day you approve — LinkedIn stops showing the post in "
+            "your feed after that, and the agent can no longer find it."
+        )
 
     st.markdown("---")
     items = pending_comments()

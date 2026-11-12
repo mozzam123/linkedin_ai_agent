@@ -129,6 +129,8 @@ def _is_suggestion_card(post_text: str, author_name: str) -> bool:
         "also follow these people",
         "add these people you may know",
         "suggested for you",
+        "want even more updates",
+        "recently active on the feed",
     )
     return any(marker in text for marker in markers)
 
@@ -149,6 +151,54 @@ def _has_niche_keyword(text: str) -> bool:
     if not settings.SCRAPER_KEYWORD_PREFILTER:
         return True
     return bool(_niche_pattern().search(text or ""))
+
+
+def _capture_permalink(container, page) -> str:
+    """
+    Read the post's real URL from its "..." menu → "Copy link to post".
+
+    The feed DOM contains no permalink, but that menu item puts one on the
+    clipboard. A real URL makes commenting reliable later: the post can be
+    opened directly instead of hunted for in a moving feed.
+    """
+    try:
+        try:
+            container.scroll_into_view_if_needed(timeout=3000)
+            page.wait_for_timeout(500)
+        except Exception:
+            pass
+
+        button = container.get_by_role("button", name=re.compile("Open control menu", re.I)).first
+        if button.count() == 0:
+            return ""
+        button.click()
+        page.wait_for_timeout(1200)
+
+        item = page.get_by_text("Copy link to post", exact=False)
+        if item.count() == 0:
+            page.keyboard.press("Escape")
+            return ""
+
+        try:
+            before = page.evaluate("() => navigator.clipboard.readText()")
+        except Exception:
+            before = ""
+
+        item.first.click()
+        page.wait_for_timeout(1000)
+
+        after = (page.evaluate("() => navigator.clipboard.readText()") or "").strip()
+        page.keyboard.press("Escape")
+
+        if after.startswith("http") and after != before:
+            return after
+        return ""
+    except Exception:
+        try:
+            page.keyboard.press("Escape")
+        except Exception:
+            pass
+        return ""
 
 
 def _synthetic_post_key(author_url: str, post_text: str) -> str:
@@ -190,14 +240,34 @@ def _clean_person_name(raw: str) -> str:
     for prefix in ("View ", "view "):
         if name.startswith(prefix):
             name = name[len(prefix):]
-    for suffix in ("'s profile", "’s profile", "'s Profile", "’s Profile"):
-        if name.endswith(suffix):
+    for suffix in (
+        "'s profile", "’s profile", "'s Profile", "’s Profile",
+        " reposted this", " likes this", " commented on this", " shared this",
+        " posted this",
+    ):
+        if name.lower().endswith(suffix.strip().lower()):
             name = name[: -len(suffix)]
     return name.strip()
 
 
 def _extract_author_name(container) -> str:
-    # Prefer the visible name text; aria-labels are often "View X's profile"
+    """
+    The author is the first line of the card header, not the first profile
+    link: a post that mentions someone else has that person's link first.
+    """
+    try:
+        lines = [l.strip() for l in (container.inner_text() or "").split("\n") if l.strip()]
+        for line in lines[:3]:
+            low = line.lower()
+            if low == "feed post" or low.startswith("feed post"):
+                continue
+            if line.startswith("•") or "|" in line or len(line) > 60:
+                continue
+            return _clean_person_name(line)
+    except Exception:
+        pass
+
+    # Fallback: profile links / aria-labels
     try:
         for link in container.locator(SELECTORS["author_link"]).all():
             text = _clean_person_name(link.inner_text())
@@ -214,16 +284,35 @@ def _extract_author_name(container) -> str:
         return ""
 
 
-def _extract_author_url(container) -> str:
+def _extract_author_url(container, author_name: str = "") -> str:
+    """
+    Return the author's profile URL.
+
+    The first profile link in a card is not always the author: if the post
+    mentions someone, that person's link comes first. When the author name is
+    known, prefer the link whose text matches it.
+    """
     try:
         links = container.locator(SELECTORS["author_link"]).all()
+        candidates = []
         for link in links:
             href = link.get_attribute("href") or ""
-            if "/in/" in href:
-                clean = href.split("?")[0]
-                if clean.startswith("/"):
-                    return "https://www.linkedin.com" + clean
-                return clean
+            if "/in/" not in href and "/company/" not in href:
+                continue
+            clean = href.split("?")[0]
+            if clean.startswith("/"):
+                clean = "https://www.linkedin.com" + clean
+            label = _clean_person_name(link.inner_text())
+            candidates.append((label, clean))
+
+        if author_name:
+            wanted = _clean_person_name(author_name).lower()
+            for label, href in candidates:
+                if label and label.lower() == wanted:
+                    return href
+
+        for _, href in candidates:
+            return href
     except Exception:
         pass
     return ""
@@ -279,6 +368,38 @@ def _word_count(text: str) -> int:
     return len(text.split())
 
 
+def _attach_permalinks(browser, posts: list[dict]) -> None:
+    """
+    Give each kept post a real URL by looking it up on its author's activity
+    page. Doing this for 1-3 posts per run is cheap, and it makes posting and
+    verification reliable later (the feed itself exposes no links).
+    """
+    from app.automation.actions import resolve_permalink
+
+    pending = [p for p in posts if not (p.get("post_url") or "").startswith("http")]
+    if not pending:
+        return
+
+    page = None
+    try:
+        page = browser.new_page()
+        for post in pending:
+            author_url = post.get("author_linkedin_url") or ""
+            if not author_url:
+                continue
+            url = resolve_permalink(page, author_url, post.get("post_text", ""))
+            if url:
+                post["post_url"] = url
+    except Exception:
+        pass
+    finally:
+        if page is not None:
+            try:
+                page.close()
+            except Exception:
+                pass
+
+
 def scrape_linkedin_feed(max_posts: int = None, headless: bool = None) -> list[dict]:
     """
     Scrape LinkedIn feed. Scrolls the #workspace container directly
@@ -295,11 +416,13 @@ def scrape_linkedin_feed(max_posts: int = None, headless: bool = None) -> list[d
 
     collected: list[dict] = []
     seen_urls: set[str]   = set()
+    seen_content: set[str] = set()
 
     with sync_playwright() as p:
         browser = p.chromium.launch_persistent_context(
             user_data_dir=settings.PLAYWRIGHT_SESSION_DIR,
             headless=headless,
+            permissions=["clipboard-read", "clipboard-write"],
         )
         page = browser.new_page()
 
@@ -342,7 +465,7 @@ def scrape_linkedin_feed(max_posts: int = None, headless: bool = None) -> list[d
                         continue
 
                     author_name = _extract_author_name(container)
-                    author_url  = _extract_author_url(container)
+                    author_url  = _extract_author_url(container, author_name)
 
                     if _is_suggestion_card(post_text, author_name):
                         continue
@@ -350,8 +473,20 @@ def scrape_linkedin_feed(max_posts: int = None, headless: bool = None) -> list[d
                     if not _has_niche_keyword(post_text):
                         continue
 
+                    # Identity is content-based: the same post can appear with
+                    # either a permalink or a fallback key, and must not be
+                    # collected twice in one run.
+                    content_key = _synthetic_post_key(author_url, post_text)
+                    if content_key in seen_content:
+                        continue
+                    seen_content.add(content_key)
+
                     if not post_url:
-                        post_url = _synthetic_post_key(author_url, post_text)
+                        # No link in the DOM — ask the post's menu for its URL
+                        post_url = _capture_permalink(container, page)
+
+                    if not post_url:
+                        post_url = content_key
 
                     if post_url in seen_urls:
                         continue
@@ -386,6 +521,12 @@ def scrape_linkedin_feed(max_posts: int = None, headless: bool = None) -> list[d
                 raise ScraperError(f"Scraper failed: {exc}") from exc
 
         finally:
+            # Resolve real permalinks for the posts we are keeping, using a
+            # separate tab so the feed position is not disturbed.
+            try:
+                _attach_permalinks(browser, collected)
+            except Exception:
+                pass
             browser.close()
 
     return collected

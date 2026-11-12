@@ -245,12 +245,17 @@ def goto_post(page: Page, post_url: str) -> None:
 
 def open_comment_box(page: Page, scope: Locator | None = None) -> Locator:
     """
-    Click 'Comment' and return the comment editor.
+    Return the comment editor, opening it if needed.
 
-    `scope` is usually a post card, so the right comment button is clicked.
-    On a single post page, scope can be the page itself (None).
+    On a single-post page the editor is often already rendered; in the feed
+    it only appears after clicking 'Comment'. Both cases are handled.
     """
     search_root = scope if scope is not None else page
+
+    editor = first_visible(search_root.locator(EDITOR_SELECTOR.format(label=COMMENT_EDITOR_LABEL)))
+    if editor is not None:
+        return editor
+
     trigger = first_visible(search_root.get_by_role("button", name="Comment", exact=True))
     if trigger is None:
         raise ActionError("Could not find a 'Comment' button to open the comment box.")
@@ -261,6 +266,9 @@ def open_comment_box(page: Page, scope: Locator | None = None) -> Locator:
         editor = first_visible(
             search_root.locator(EDITOR_SELECTOR.format(label=COMMENT_EDITOR_LABEL))
         ) or first_visible(search_root.locator(ANY_EDITOR_SELECTOR))
+        if editor is None and search_root is not page:
+            # On some layouts the editor renders outside the card container
+            editor = first_visible(page.locator(EDITOR_SELECTOR.format(label=COMMENT_EDITOR_LABEL)))
         if editor is not None:
             break
         page.wait_for_timeout(500)
@@ -270,19 +278,246 @@ def open_comment_box(page: Page, scope: Locator | None = None) -> Locator:
     return editor
 
 
-def comment_submit_button(page: Page, scope: Locator | None = None) -> Locator:
+def comment_submit_button(page: Page, scope: Locator | None = None, editor: Locator | None = None) -> Locator:
     """
     The submit button of an open comment box.
 
-    LinkedIn labels both the opener and the submit button 'Comment', so this
-    must be called AFTER open_comment_box(); at that point the enabled
-    'Comment' button inside the scope is the submit one.
+    LinkedIn shows TWO controls named 'Comment': the action-bar button that
+    focuses the box (small, above) and the real submit button (below the
+    editor, next to the text box). Picking the first one clicks the action bar
+    and nothing is submitted — which is why the editor position is used to
+    prefer the button underneath it.
     """
     search_root = scope if scope is not None else page
-    button = first_visible(search_root.get_by_role("button", name="Comment", exact=True))
-    if button is None:
+    buttons = search_root.get_by_role("button", name="Comment", exact=True)
+
+    candidates = []
+    for index in range(buttons.count()):
+        button = buttons.nth(index)
+        try:
+            if button.is_visible():
+                candidates.append(button)
+        except Exception:
+            continue
+    if not candidates:
         raise ActionError("Could not find the Comment submit button.")
-    return button
+
+    if editor is not None:
+        try:
+            editor_box = editor.bounding_box()
+            if editor_box:
+                below = []
+                for button in candidates:
+                    box = button.bounding_box()
+                    if box and box["y"] >= editor_box["y"] - 5:
+                        below.append((box["y"], button))
+                if below:
+                    return min(below, key=lambda pair: pair[0])[1]
+        except Exception:
+            pass
+
+    return candidates[-1]
+
+
+def comment_editor_cleared(page: Page) -> bool:
+    """
+    True when no visible comment editor still holds text.
+
+    LinkedIn clears the composer when a comment is accepted, so an emptied box
+    is a reliable success signal — often more reliable than finding the text,
+    which may sit under a collapsed "Load more comments".
+    """
+    editors = page.locator(EDITOR_SELECTOR.format(label=COMMENT_EDITOR_LABEL))
+    for index in range(editors.count()):
+        editor = editors.nth(index)
+        try:
+            if editor.is_visible() and editor.inner_text().strip():
+                return False
+        except Exception:
+            continue
+    return True
+
+
+def comment_visible(page: Page, comment_text: str) -> bool:
+    """
+    True if the comment text is present on the page *outside* an editor.
+
+    Checking the whole body is useless: the text stays in the comment box
+    until it is submitted, so a naive check reports success before clicking.
+    Editors are stripped from a copy of the DOM before searching.
+    """
+    needle = _normalize(comment_text)[:60]
+    if not needle:
+        return False
+    try:
+        body = page.evaluate(
+            """() => {
+                const clone = document.body.cloneNode(true);
+                clone.querySelectorAll("[contenteditable='true']").forEach(el => el.remove());
+                return clone.innerText || '';
+            }"""
+        )
+        return needle in _normalize(body)
+    except Exception:
+        return False
+
+
+# ── Locating a post without a permalink ──────────────────────────────────────
+
+def _normalize(text: str) -> str:
+    return " ".join((text or "").split()).lower()
+
+
+def card_matches(card: Locator, post_text: str, author_name: str | None = None) -> bool:
+    """
+    Compare a feed card to a stored post by CONTENT only.
+
+    Author names are not used for matching: a post that mentions someone else
+    makes the first profile link in the card point at the mentioned person,
+    not the author, so a name check rejects the correct card.
+    """
+    from app.automation.linkedin_scraper import _extract_post_text
+
+    target = _normalize(post_text)
+    if not target:
+        return False
+    card_text = _normalize(_extract_post_text(card))
+    if not card_text:
+        return False
+
+    return card_text[:120] == target[:120] or target[:80] in card_text
+
+
+def find_card_by_text(
+    page: Page,
+    post_text: str,
+    author_name: str | None = None,
+    max_scrolls: int = 12,
+) -> Locator | None:
+    """Scroll the feed until the matching post card is found."""
+    for _ in range(max_scrolls + 1):
+        cards = page.locator(POST_CARD_SELECTOR)
+        for index in range(cards.count()):
+            card = cards.nth(index)
+            try:
+                if card_matches(card, post_text, author_name):
+                    return card
+            except Exception:
+                continue
+        page.mouse.wheel(0, 1500)
+        page.wait_for_timeout(1800)
+    return None
+
+
+def resolve_permalink(page: Page, author_url: str, post_text: str, max_scrolls: int = 4) -> str:
+    """
+    Find a post's real permalink on its author's activity page.
+
+    The feed exposes no links, but `/{profile}/recent-activity/all/` does —
+    each post there carries a /feed/update/urn:li:activity:... link. That is
+    what makes commenting on an older post possible at all.
+    """
+    from app.automation.linkedin_scraper import _capture_permalink, _extract_post_text
+
+    if not author_url:
+        return ""
+    base = author_url.rstrip("/")
+    goto(page, f"{base}/recent-activity/all/")
+    ensure_logged_in(page)
+    page.wait_for_timeout(2500)
+
+    target = _normalize(post_text)
+    if not target:
+        return ""
+
+    for _ in range(max_scrolls + 1):
+        cards = page.locator(POST_CARD_SELECTOR)
+        for index in range(cards.count()):
+            card = cards.nth(index)
+            try:
+                card_text = _normalize(_extract_post_text(card))
+            except Exception:
+                continue
+            if not card_text:
+                continue
+            if not (card_text[:120] == target[:120] or target[:80] in card_text):
+                continue
+
+            link = first_visible(card.locator("a[href*='/feed/update/'], a[href*='/posts/']"))
+            if link is not None:
+                href = (link.get_attribute("href") or "").strip()
+                if href.startswith("/"):
+                    href = "https://www.linkedin.com" + href
+                if href.startswith("http"):
+                    return href
+
+            # No timestamp link on this card — ask its menu
+            captured = _capture_permalink(card, page)
+            if captured:
+                return captured
+        page.mouse.wheel(0, 1500)
+        page.wait_for_timeout(1500)
+
+    return ""
+
+
+def comment_on_post(
+    page: Page,
+    post_text: str,
+    comment_text: str,
+    author_name: str | None = None,
+    post_url: str | None = None,
+    author_url: str | None = None,
+    dry_run: bool | None = None,
+) -> bool:
+    """
+    Comment on a post.
+
+    Order matters: the fast, verified path first, the best-effort one last.
+      1. a real permalink (captured at discovery) → open the post directly
+      2. a card in the live feed with matching content (works while fresh)
+      3. the author's activity page, which sometimes exposes a permalink
+
+    Returns True when the comment was submitted, False in dry-run mode.
+    """
+    permalink = post_url if (post_url or "").startswith("http") else ""
+
+    if permalink:
+        return _comment_on_permalink(page, permalink, comment_text, dry_run)
+
+    # 2. Live feed
+    goto(page, FEED_URL)
+    page.wait_for_timeout(2500)
+    card = find_card_by_text(page, post_text, author_name)
+    if card is not None:
+        card.scroll_into_view_if_needed()
+        page.wait_for_timeout(500)
+        editor = open_comment_box(page, card)
+        if not type_text(page, editor, comment_text):
+            raise ActionError("Comment text did not land in the comment box.")
+        submit = comment_submit_button(page, card, editor=editor)
+        if not wait_until_enabled(submit, page, 5000):
+            raise ActionError("Comment button stayed disabled after typing.")
+        return click_or_skip(page, submit, "Comment", dry_run)
+
+    # 3. Author activity page (best effort)
+    if author_url:
+        resolved = resolve_permalink(page, author_url, post_text)
+        if resolved:
+            return _comment_on_permalink(page, resolved, comment_text, dry_run)
+
+    raise ActionError("That post could not be located in the feed or on the author's profile.")
+
+
+def _comment_on_permalink(page: Page, permalink: str, comment_text: str, dry_run: bool | None) -> bool:
+    goto_post(page, permalink)
+    editor = open_comment_box(page)
+    if not type_text(page, editor, comment_text):
+        raise ActionError("Comment text did not land in the comment box.")
+    submit = comment_submit_button(page, editor=editor)
+    if not wait_until_enabled(submit, page, 5000):
+        raise ActionError("Comment button stayed disabled after typing.")
+    return click_or_skip(page, submit, "Comment", dry_run)
 
 
 # ── Self test ─────────────────────────────────────────────────────────────────
@@ -305,7 +540,7 @@ def _self_test() -> None:
             print("✓ comment box opened")
             typed = type_text(page, comment_editor, "Self-test comment — nothing posted.")
             print(f"✓ comment typing verified: {typed}")
-            submit = comment_submit_button(page, card)
+            submit = comment_submit_button(page, card, editor=comment_editor)
             print(f"✓ comment submit found, enabled={wait_until_enabled(submit, page, 5000)}")
             discard_draft(page)
             print("✓ comment draft discarded (nothing was posted)")
