@@ -104,9 +104,12 @@ def _touch_creator(db, author_url: str | None, author_name: str | None) -> None:
     creator.total_comments_made = (creator.total_comments_made or 0) + 1
 
 
-def post_approved_comments(limit: int | None = None, dry_run: bool | None = None) -> dict:
+def post_approved_comments(limit: int | None = None, dry_run: bool | None = None, comment_id: int | None = None) -> dict:
     """
     Post approved comments, one per run.
+
+    If comment_id is given, post that specific comment (after rate-limit checks).
+    Otherwise post the freshest approved comment (up to `limit`, default 1).
 
     Returns {"posted": n, "results": [...], "blocked_reason": str|None}.
     """
@@ -159,8 +162,17 @@ def post_approved_comments(limit: int | None = None, dry_run: bool | None = None
     finally:
         db.close()
 
-    # Apply the per-run limit only after ordering, so the freshest goes first
-    queue = queue[: (limit or 1)]
+    if comment_id is not None:
+        queue = [item for item in queue if item["comment_id"] == comment_id]
+        if not queue:
+            return {
+                "posted": 0,
+                "results": [],
+                "blocked_reason": "Comment not found or not approved for posting.",
+            }
+    else:
+        # Apply the per-run limit only after ordering, so the freshest goes first
+        queue = queue[: (limit or 1)]
 
     if not queue:
         return {

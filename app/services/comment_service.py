@@ -112,3 +112,33 @@ def reject_comment(comment_id: int, reason: str = "Rejected during review") -> b
         return True
     finally:
         db.close()
+
+
+def approved_comments(limit: int = 50) -> list[dict]:
+    """Approved comments waiting to be posted, with their source post."""
+    db = SessionLocal()
+    try:
+        rows = (
+            db.query(GeneratedComment, DiscoveredPost)
+            .join(DiscoveredPost, GeneratedComment.discovered_post_id == DiscoveredPost.id)
+            .filter(GeneratedComment.status == "approved")
+            .order_by(GeneratedComment.id.desc())
+            .limit(limit)
+            .all()
+        )
+        return [
+            {
+                "comment_id": comment.id,
+                "post_id": post.id,
+                "post_url": post.post_url,
+                "author_name": post.author_name,
+                "post_text": post.post_text,
+                "comment_text": comment.comment_text,
+                "self_score": comment.self_score,
+                "self_critique": comment.self_critique,
+                "created_at": comment.created_at,
+            }
+            for comment, post in rows
+        ]
+    finally:
+        db.close()

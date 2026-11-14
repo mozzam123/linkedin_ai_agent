@@ -12,6 +12,7 @@ from app.services.comment_poster import DAY_CAP, post_approved_comments, posting
 from app.services.comment_scheduler import last_run, next_run_at
 from app.services.comment_service import (
     approve_comment,
+    approved_comments,
     pending_comments,
     reject_comment,
     run_comment_workflow,
@@ -104,41 +105,78 @@ def render_comment_queue():
             value=False,
         )
 
-        if st.button(
-            "Post next approved comment",
-            type="primary",
-            disabled=not status["can_post_now"] or status["approved_waiting"] == 0,
-        ):
-            with st.spinner("Opening LinkedIn, locating the post, commenting…"):
-                outcome = post_approved_comments(limit=1, dry_run=dry)
-            if outcome.get("blocked_reason"):
-                st.warning(outcome["blocked_reason"])
-            for item in outcome.get("results") or []:
-                if item.get("ok") and not item.get("dry_run"):
-                    if item.get("confirmed"):
-                        st.success(f"Comment #{item['comment_id']} posted and confirmed on the page.")
-                    else:
-                        st.warning(
-                            f"Comment #{item['comment_id']}: submit was clicked but the comment "
-                            "was not found on the page. Check LinkedIn before trusting it."
-                        )
-                elif item.get("ok"):
-                    st.info(f"Dry run OK for comment #{item['comment_id']} — nothing submitted.")
-                else:
-                    st.error(f"Comment #{item['comment_id']} failed: {item.get('error')}")
-
-            if outcome.get("expired"):
-                st.warning(
-                    f"{outcome['expired']} comment(s) were marked **expired** because the post "
-                    "could no longer be found. Approve drafts and post them the same day."
-                )
-
         st.caption(
             "Caps: 1 comment per run · 2h between comments · "
             f"{DAY_CAP} per day · 1 per creator per 48h. "
             "⚠️ Post the same day you approve — LinkedIn stops showing the post in "
             "your feed after that, and the agent can no longer find it."
         )
+
+        # Approved comments, each with its own Post button
+        approved = approved_comments()
+        if approved:
+            st.markdown("### Approved comments ready to post")
+            st.caption("Click **Post** next to the comment you want to send to LinkedIn.")
+            for item in approved:
+                comment_id = item["comment_id"]
+                author = item["author_name"] or "Unknown author"
+                preview = (item["comment_text"] or "").strip().replace("\n", " ")[:70]
+                with st.expander(f"{author} — {preview}…", expanded=False):
+                    st.markdown(f"**Original post** · self score {_score_badge(item['self_score'])}")
+                    st.text_area(
+                        "post_text",
+                        value=item["post_text"] or "",
+                        height=120,
+                        disabled=True,
+                        label_visibility="collapsed",
+                        key=f"ap_post_{comment_id}",
+                    )
+                    edited = st.text_area(
+                        "Your comment",
+                        value=item["comment_text"] or "",
+                        height=100,
+                        key=f"ap_comment_{comment_id}",
+                    )
+                    col1, col2 = st.columns([1, 3])
+                    with col1:
+                        post_disabled = not status["can_post_now"]
+                        if st.button(
+                            "📤 Post this comment",
+                            key=f"post_{comment_id}",
+                            disabled=post_disabled,
+                            use_container_width=True,
+                        ):
+                            if edited and edited.strip():
+                                approve_comment(comment_id, edited.strip())
+                            with st.spinner("Opening LinkedIn, locating the post, commenting…"):
+                                outcome = post_approved_comments(
+                                    comment_id=comment_id, dry_run=dry
+                                )
+                            if outcome.get("blocked_reason"):
+                                st.warning(outcome["blocked_reason"])
+                            for res in outcome.get("results") or []:
+                                if res.get("ok") and not res.get("dry_run"):
+                                    if res.get("confirmed"):
+                                        st.success(
+                                            f"Comment #{comment_id} posted and confirmed on the page."
+                                        )
+                                    else:
+                                        st.warning(
+                                            f"Comment #{comment_id}: submit was clicked but the comment "
+                                            "was not found on the page. Check LinkedIn before trusting it."
+                                        )
+                                elif res.get("ok"):
+                                    st.info(f"Dry run OK for comment #{comment_id} — nothing submitted.")
+                                else:
+                                    st.error(f"Comment #{comment_id} failed: {res.get('error')}")
+                            st.rerun()
+                    with col2:
+                        if item["post_url"] and item["post_url"].startswith("http"):
+                            st.link_button(
+                                "Open post on LinkedIn", item["post_url"], use_container_width=True
+                            )
+        else:
+            st.info("No approved comments waiting. Approve a draft below, then post it here.")
 
     st.markdown("---")
     items = pending_comments()
